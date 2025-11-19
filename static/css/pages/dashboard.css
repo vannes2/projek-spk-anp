@@ -1,0 +1,103 @@
+/* =============================
+   PAGE: DASHBOARD
+   ============================= */
+
+.page-dashboard .hero {
+  background: linear-gradient(135deg, #5D6D7E, #85929E);
+  color: white;
+  text-align: center;
+  padding: 120px 0;
+}
+
+.page-dashboard .hero h1 {
+  font-size: 3rem;
+  font-weight: 700;
+  margin-bottom: 15px;
+}
+
+.page-dashboard .hero p {
+  font-size: 1.25rem;
+  margin-bottom: 30px;
+  color: #ecf0f1;
+}
+
+.page-dashboard .features {
+  background-color: var(--secondary-color);
+  padding: 80px 0;
+}
+
+.page-dashboard .features .card {
+  background-color: white;
+  border-radius: var(--border-radius);
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
+  transition: var(--transition);
+}
+
+.page-dashboard .features .card:hover {
+  transform: translateY(-5px);
+  box-shadow: 0 5px 20px rgba(0, 0, 0, 0.12);
+}
+
+.page-dashboard .features img {
+  width: 80px;
+}
+
+.page-dashboard .features .btn {
+  background-color: white;
+  color: var(--primary-color);
+  font-weight: 600;
+  border-radius: var(--border-radius);
+  border: none;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+  transition: var(--transition);
+}
+
+.page-dashboard .features .btn:hover {
+  background-color: var(--accent-color);
+  color: white;
+}
+
+.page-dashboard footer {
+  background-color: var(--primary-color);
+  color: white;
+  text-align: center;
+  padding: 15px 0;
+  font-size: 0.9rem;
+}
+
+/* Layout dasar agar footer selalu di bawah */
+.page-dashboard {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh; /* buat tinggi minimal layar penuh */
+}
+
+/* Bagian konten utama fleksibel, dorong footer ke bawah */
+.page-dashboard main {
+  flex: 1;
+}
+
+/* ==== Card interaktif tanpa tombol ==== */
+.page-dashboard .features .card-link {
+  display: block;
+  text-decoration: none;
+  color: inherit;
+  background-color: white;
+  border-radius: var(--border-radius);
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
+  transition: transform 0.3s ease, box-shadow 0.3s ease;
+  padding: 30px 20px;
+}
+
+.page-dashboard .features .card-link:hover {
+  transform: translateY(-8px);
+  box-shadow: 0 8px 25px rgba(0, 0, 0, 0.15);
+}
+
+.page-dashboard .features .card-link h5 {
+  color: var(--primary-color);
+}
+
+.page-dashboard .features .card-link:hover h5 {
+  color: var(--accent-color);
+}

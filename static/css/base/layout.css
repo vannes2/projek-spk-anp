@@ -1,0 +1,26 @@
+/* =============================
+   LAYOUT - Tata letak umum
+   ============================= */
+
+.container {
+  width: 90%;
+  max-width: 1200px;
+  margin: auto;
+}
+
+section {
+  padding: 80px 0;
+}
+
+.text-center {
+  text-align: center;
+}
+
+.btn {
+  border-radius: var(--border-radius);
+  transition: var(--transition);
+}
+
+.btn:hover {
+  opacity: 0.9;
+}

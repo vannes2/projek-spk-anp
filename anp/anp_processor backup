@@ -1,0 +1,182 @@
+import os
+import numpy as np
+import pandas as pd
+import matplotlib.pyplot as plt
+
+# === Konfigurasi direktori penyimpanan grafik ===
+BASE_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+CHART_DIR = os.path.join(BASE_DIR, "static", "charts")
+os.makedirs(CHART_DIR, exist_ok=True)
+
+
+# === 1️⃣ Konversi data teks ke skor numerik ===
+def translate_value(column_name, value):
+    """Mengubah teks menjadi skor angka (1–5) sesuai kriteria ANP."""
+    v = str(value).lower().strip()
+
+    # C1: Biaya Sewa (Cost — skor tinggi lebih baik)
+    if "sewa" in column_name.lower():
+        if "7" in v or "tujuh" in v:
+            return 1
+        elif "4" in v:
+            return 2
+        elif "2" in v:
+            return 3
+        elif "1" in v:
+            return 4
+        elif "500" in v:
+            return 5
+
+    # C2: Penjualan (Benefit)
+    if "porsi" in v:
+        if "5" in v and "10" in v:
+            return 1
+        elif "15" in v or "30" in v:
+            return 2
+        elif "50" in v:
+            return 3
+        elif "100" in v:
+            return 4
+        else:
+            return 5
+
+    # C3: Bahan Baku (Benefit)
+    if "mudah" in v:
+        if "cukup" in v:
+            return 4
+        elif "sangat" in v:
+            return 5
+        else:
+            return 3
+    elif "sulit" in v:
+        return 1
+    elif "agak sulit" in v:
+        return 2
+
+    # C4: Fasilitas (Benefit)
+    if any(x in v for x in ["barcode", "kulkas", "kursi", "tempat duduk"]):
+        items = v.split(",")
+        return min(5, len(items))
+
+    # C5: Persaingan (Cost)
+    if "ketat" in v:
+        return 1
+    elif "sangat mempengaruhi" in v:
+        return 2
+    elif "cukup" in v:
+        return 3
+    elif "tidak" in v:
+        return 4
+    elif "belum" in v:
+        return 5
+
+    # Default jika tidak dikenali
+    try:
+        return float(value)
+    except:
+        return 0
+
+
+# === 2️⃣ Matriks Saaty Default (C1–C5) ===
+def build_default_matrix():
+    """Membangun matriks perbandingan kriteria default berdasarkan dokumen."""
+    kriteria = ["C1", "C2", "C3", "C4", "C5"]
+    n = len(kriteria)
+    M = np.ones((n, n))
+
+    # Masukkan nilai perbandingan sesuai tabel kamu
+    pairwise = {
+        ("C1", "C2"): 7,
+        ("C1", "C3"): 3,
+        ("C1", "C4"): 5,
+        ("C1", "C5"): 3,
+        ("C2", "C3"): 9,
+        ("C2", "C4"): 3,
+        ("C2", "C5"): 5,
+        ("C3", "C4"): 7,
+        ("C3", "C5"): 5,
+        ("C4", "C5"): 3
+    }
+
+    # Isi matriks sesuai pasangan
+    for (a, b), val in pairwise.items():
+        i, j = kriteria.index(a), kriteria.index(b)
+        M[i][j] = val
+        M[j][i] = 1 / val
+
+    return M, kriteria
+
+
+# === 3️⃣ Hitung eigenvector dan Consistency Ratio ===
+def calculate_weights(M):
+    """Menghitung eigenvector utama dan rasio konsistensi."""
+    eigvals, eigvecs = np.linalg.eig(M)
+    max_index = np.argmax(eigvals)
+    max_eigval = np.real(eigvals[max_index])
+    weights = np.real(eigvecs[:, max_index])
+    weights = weights / np.sum(weights)
+
+    # Hitung CI & CR
+    n = M.shape[0]
+    CI = (max_eigval - n) / (n - 1)
+    RI = {1: 0, 2: 0, 3: 0.58, 4: 0.90, 5: 1.12}.get(n, 1.12)
+    CR = CI / RI if RI != 0 else 0
+
+    return weights, max_eigval, CI, CR
+
+
+# === 4️⃣ Jalankan Analisis ANP Otomatis ===
+def run_anp_analysis(df):
+    """
+    Fungsi utama:
+    - Konversi data mentah
+    - Gunakan matriks Saaty default
+    - Hitung bobot kriteria
+    - Hitung prioritas alternatif
+    - Buat grafik hasil
+    """
+    cols = df.columns.tolist()
+    if len(cols) < 6:
+        raise ValueError("File harus memiliki minimal 6 kolom (Alternatif + 5 Kriteria).")
+
+    # Konversi ke angka
+    df_numeric = df.copy()
+    for col in cols[1:]:
+        df_numeric[col] = df_numeric[col].apply(lambda x: translate_value(col, x))
+
+    # Matriks Saaty default → bobot kriteria
+    M, kriteria = build_default_matrix()
+    weights, eigval, CI, CR = calculate_weights(M)
+
+    # Normalisasi tiap kolom (kriteria)
+    norm_df = df_numeric.copy()
+    for col in cols[1:]:
+        total = norm_df[col].sum()
+        norm_df[col] = norm_df[col] / total if total > 0 else norm_df[col]
+
+    # Hitung skor total dengan bobot ANP
+    df_numeric["Skor_Akhir"] = np.dot(norm_df.iloc[:, 1:6], weights)
+    df_sorted = df_numeric.sort_values(by="Skor_Akhir", ascending=False)
+
+    # Buat grafik hasil
+    plt.figure(figsize=(8, 5))
+    plt.barh(df_sorted.iloc[:, 0], df_sorted["Skor_Akhir"], color="#5D6D7E")
+    plt.xlabel("Nilai Prioritas ANP (0–1)")
+    plt.ylabel("Alternatif Lokasi Usaha")
+    plt.title("Hasil Analisis ANP Otomatis (Default Saaty)")
+    plt.gca().invert_yaxis()
+    plt.tight_layout()
+
+    chart_path = os.path.join(CHART_DIR, "hasil_anp.png")
+    plt.savefig(chart_path)
+    plt.close()
+
+    # Kembalikan hasil
+    result_info = {
+        "weights": {kriteria[i]: round(float(weights[i]), 4) for i in range(len(weights))},
+        "eigenvalue": round(float(eigval), 4),
+        "CI": round(float(CI), 4),
+        "CR": round(float(CR), 4),
+    }
+
+    return df_sorted.to_dict(orient="records"), "static/charts/hasil_anp.png", result_info

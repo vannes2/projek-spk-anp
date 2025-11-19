@@ -1,0 +1,17 @@
+/* ==== BASE ==== */
+@import url('base/reset.css');
+@import url('base/variables.css');
+@import url('base/typography.css');
+@import url('base/layout.css');
+
+/* ==== COMPONENTS ==== */
+@import url('components/navbar.css');
+@import url('components/button.css');
+@import url('components/card.css');
+@import url('components/footer.css');
+
+/* ==== PAGES ==== */
+@import url('pages/landing.css');
+@import url('pages/login.css');
+@import url('pages/dashboard.css');
+

@@ -1,0 +1,26 @@
+/* =============================
+   COMPONENT: CARD
+   ============================= */
+
+.card {
+  border: none;
+  border-radius: var(--border-radius);
+  background-color: white;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
+  transition: var(--transition);
+}
+
+.card:hover {
+  transform: translateY(-5px);
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.15);
+}
+
+.card h4 {
+  font-weight: 600;
+  margin-bottom: 10px;
+}
+
+.card p {
+  color: #555;
+  font-size: 0.95rem;
+}

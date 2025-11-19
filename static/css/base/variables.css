@@ -1,0 +1,13 @@
+:root {
+  /* Palet warna Soft Gray-Neutral */
+  --primary-color: #5D6D7E;      /* Abu netral elegan */
+  --secondary-color: #f7f8fa;    /* Abu muda latar belakang */
+  --accent-color: #85929E;       /* Abu keperakan lembut */
+  
+  --text-color: #2C3E50;         /* Abu tua untuk teks utama */
+  
+  /* Font dan layout */
+  --font-main: 'Poppins', sans-serif;
+  --border-radius: 10px;
+  --transition: 0.3s ease-in-out;
+}

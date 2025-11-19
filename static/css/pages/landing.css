@@ -1,0 +1,58 @@
+/* =============================
+   PAGE: LANDING
+   ============================= */
+
+.page-landing .hero {
+  background: linear-gradient(135deg, #5D6D7E, #85929E);
+  color: white;
+  text-align: center;
+  padding: 120px 0;
+}
+
+.page-landing .hero h1 {
+  font-size: 3rem;
+  font-weight: 700;
+  margin-bottom: 15px;
+}
+
+.page-landing .hero p {
+  font-size: 1.25rem;
+  margin-bottom: 30px;
+  color: #ecf0f1;
+}
+
+.page-landing .hero .btn {
+  background-color: white;
+  color: var(--primary-color);
+  font-weight: 600;
+  border-radius: var(--border-radius);
+  border: none;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+}
+
+.page-landing .hero .btn:hover {
+  background-color: var(--accent-color);
+  color: white;
+}
+
+
+.page-landing .features {
+  background-color: var(--secondary-color);
+  padding: 80px 0;
+}
+
+.page-landing .features .card {
+  background-color: white;
+  border-radius: var(--border-radius);
+  box-shadow: 0 2px 10px rgba(0,0,0,0.05);
+  transition: var(--transition);
+}
+
+.page-landing .features .card:hover {
+  transform: translateY(-5px);
+  box-shadow: 0 5px 20px rgba(0,0,0,0.12);
+}
+
+.page-landing .features .feature-icon {
+  font-size: 2.5rem;
+}
