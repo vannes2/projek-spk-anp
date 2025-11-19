@@ -6,12 +6,11 @@ import pandas as pd
 import os
 
 # === Import modul ANP dari file terpisah ===
-from anp.anp_processor import run_anp_analysis
-
+from anp.anp_processor import run_anp_analysis, translate_value  # pastikan fungsi translate_value ada
 
 # === Inisialisasi Flask ===
 app = Flask(__name__)
-app.secret_key = "supersecretkey"  # Ganti dengan key yang lebih aman
+app.secret_key = "supersecretkey"
 
 # === PATH DATABASE ===
 BASE_DIR = os.path.abspath(os.path.dirname(__file__))
@@ -28,10 +27,8 @@ app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
 app.config["UPLOAD_FOLDER"] = UPLOAD_FOLDER
 ALLOWED_EXTENSIONS = {"csv", "xlsx", "xls"}
 
-
 # === Inisialisasi SQLAlchemy ===
 db = SQLAlchemy(app)
-
 
 # === MODEL DATABASE ===
 class User(db.Model):
@@ -40,9 +37,8 @@ class User(db.Model):
     email = db.Column(db.String(120), unique=True)
     picture = db.Column(db.String(250))
 
-
-# === KONFIGURASI GOOGLE OAUTH ===
-os.environ["OAUTHLIB_INSECURE_TRANSPORT"] = "1"  # biar bisa jalan di localhost tanpa HTTPS
+# === GOOGLE OAUTH CONFIG ===
+os.environ["OAUTHLIB_INSECURE_TRANSPORT"] = "1"
 
 google_bp = make_google_blueprint(
     client_id="202395510870-3o4jasv2hbtjksqbm0m2c2ihs4l66g7c.apps.googleusercontent.com",
@@ -56,14 +52,12 @@ google_bp = make_google_blueprint(
 )
 app.register_blueprint(google_bp, url_prefix="/login")
 
-
-# === HELPER: cek ekstensi file ===
+# === HELPER ===
 def allowed_file(filename):
     return "." in filename and filename.rsplit(".", 1)[1].lower() in ALLOWED_EXTENSIONS
 
 
 # === ROUTES ===
-
 @app.route("/")
 def index():
     return render_template("landing.html")
@@ -122,7 +116,7 @@ def dashboard():
 
 @app.route("/upload", methods=["GET", "POST"])
 def upload_file():
-    """Halaman upload Excel/CSV dan hasil perhitungan ANP."""
+    """Upload file Excel/CSV berisi kalimat dan konversi otomatis ke angka (1–5)"""
     if "user_id" not in session:
         return redirect(url_for("login"))
 
@@ -141,47 +135,58 @@ def upload_file():
         filepath = os.path.join(app.config["UPLOAD_FOLDER"], filename)
         file.save(filepath)
 
-        # Baca file pakai Pandas
+        # === 1️⃣ Baca file pakai Pandas ===
         try:
-            # Deteksi otomatis delimiter dan format file
             if filename.endswith(".csv"):
-                # Coba baca dengan titik koma (;) karena banyak CSV Indonesia pakai ini
-                df = pd.read_csv(filepath, sep=";")
-
-                # Jika masih terbaca 1 kolom, coba ulang dengan koma (,)
+                df = pd.read_csv(filepath, sep=";", engine="python")
                 if len(df.columns) == 1:
-                    df = pd.read_csv(filepath, sep=",")
-
+                    df = pd.read_csv(filepath, sep=",", engine="python")
             else:
-                # Format Excel (.xlsx, .xls)
                 df = pd.read_excel(filepath)
 
-            # Debug tampilkan hasil kolom
             print("\n=== DEBUG UPLOAD FILE ===")
-            print("File terbaca dengan kolom:", df.columns.tolist())
-            print("Jumlah kolom:", len(df.columns))
+            print("Kolom terbaca:", df.columns.tolist())
             print("=========================\n")
 
         except Exception as e:
             flash(f"❌ Gagal membaca file: {e}")
             return redirect(request.url)
 
-        # Jalankan perhitungan ANP
+        # === 2️⃣ Konversi kalimat → angka otomatis ===
         try:
-            result_data = run_anp_analysis(df)
+            df_numeric = df.copy()
+            for col in df.columns[1:]:  # Lewati kolom nama alternatif
+                df_numeric[col] = df_numeric[col].apply(lambda x: translate_value(col, x))
+
+            print("\n=== DEBUG KONVERSI TEKS ===")
+            print(df_numeric.head())
+            print("============================\n")
+
+        except Exception as e:
+            flash(f"❌ Gagal mengonversi data: {e}")
+            return redirect(request.url)
+
+        # === 3️⃣ Jalankan perhitungan ANP ===
+        try:
+            result_data = run_anp_analysis(df_numeric)
+
             results = result_data["ranking"]
             chart_path = result_data["chart"]
             info = {
                 "weights": result_data["weights"],
                 "CI": result_data["CI"],
                 "CR": result_data["CR"],
-                "summary": result_data["summary"]
+                "summary": result_data["summary"],
             }
+
+            supermatrix_html = result_data.get("supermatrix_html", "")
+            limitmatrix_html = result_data.get("limitmatrix_html", "")
+
         except Exception as e:
             flash(f"❌ Terjadi kesalahan saat menghitung ANP: {e}")
             return redirect(request.url)
 
-        # Kirim hasil ke halaman HTML
+        # === 4️⃣ Kirim hasil ke halaman HTML ===
         return render_template(
             "upload.html",
             uploaded=True,
@@ -189,10 +194,11 @@ def upload_file():
             chart=chart_path,
             results=results,
             info=info,
+            supermatrix_html=supermatrix_html,
+            limitmatrix_html=limitmatrix_html,
             name=session["user_name"],
         )
 
-    # Jika metode GET (belum upload)
     return render_template("upload.html", uploaded=False, name=session["user_name"])
 
 
@@ -202,7 +208,6 @@ def logout():
     return redirect(url_for("index"))
 
 
-# === JALANKAN APLIKASI ===
 if __name__ == "__main__":
     with app.app_context():
         db.create_all()

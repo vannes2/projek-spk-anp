@@ -1,207 +1,233 @@
-# ============================================
-# ANP Processor - Versi Lengkap & Terpadu (Final)
-# ============================================
-
 import os
 import numpy as np
 import pandas as pd
+import matplotlib
+matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 
-# --------------------------------------------
-# Bagian 1: Konfigurasi dasar & fungsi bantu
-# --------------------------------------------
-
+# ======================================================
+#  KONFIGURASI
+# ======================================================
 BASE_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 CHART_DIR = os.path.join(BASE_DIR, "static", "charts")
 os.makedirs(CHART_DIR, exist_ok=True)
 
 
-def normalize_matrix(matrix):
-    """Normalisasi matriks pairwise comparison."""
-    column_sum = np.sum(matrix, axis=0)
-    return matrix / column_sum
+# ======================================================
+# 🔧 NORMALISASI NAMA KOLOM
+# ======================================================
+def normalize_column_name(name: str):
+    """
+    Ubah nama kolom panjang menjadi versi pendek (C1, C2, dst)
+    supaya konsisten di seluruh proses ANP.
+    """
+    name = str(name).strip().lower()
+    if "c1" in name: return "C1"
+    if "c2" in name: return "C2"
+    if "c3" in name: return "C3"
+    if "c4" in name: return "C4"
+    if "c5" in name: return "C5"
+    return name
 
 
-def get_eigenvector(matrix):
-    """Hitung eigenvector (bobot kriteria)."""
-    norm = normalize_matrix(matrix)
-    return np.mean(norm, axis=1)
-
-
-def consistency_ratio(matrix, eigenvector):
-    """Menghitung Consistency Index (CI) dan Consistency Ratio (CR)."""
-    n = matrix.shape[0]
-    lambda_max = np.mean(np.sum(matrix * eigenvector, axis=1) / eigenvector)
-    CI = (lambda_max - n) / (n - 1)
-    RI = 1.12  # untuk n=5
-    CR = CI / RI
-    return round(CI, 4), round(CR, 4)
-
-
-# --------------------------------------------
-# Bagian 2: Matriks Saaty Default
-# --------------------------------------------
-
-def build_default_matrix():
-    """Membangun matriks perbandingan kriteria (C1–C5)."""
-    kriteria = ["C1", "C2", "C3", "C4", "C5"]
-    n = len(kriteria)
-    M = np.ones((n, n))
-
-    pairwise = {
-        ("C1", "C2"): 7,
-        ("C1", "C3"): 3,
-        ("C1", "C4"): 5,
-        ("C1", "C5"): 3,
-        ("C2", "C3"): 9,
-        ("C2", "C4"): 3,
-        ("C2", "C5"): 5,
-        ("C3", "C4"): 7,
-        ("C3", "C5"): 5,
-        ("C4", "C5"): 3
-    }
-
-    for (a, b), val in pairwise.items():
-        i, j = kriteria.index(a), kriteria.index(b)
-        M[i][j] = val
-        M[j][i] = 1 / val
-
-    return M, kriteria
-
-
-# --------------------------------------------
-# Bagian 3: Konversi teks ke angka
-# --------------------------------------------
-
+# ======================================================
+# 1️⃣ FUNGSI KONVERSI TEKS → ANGKA
+# ======================================================
 def translate_value(column_name, value):
+    """Mengubah kata-kata umum seperti 'murah', 'sulit', 'mudah' menjadi angka (1–5)."""
     v = str(value).lower().strip()
 
-    # C1: Sewa (Cost)
-    if "sewa" in column_name.lower():
-        if "7" in v or "tujuh" in v:
-            return 1
-        elif "4" in v or "empat" in v or "mahal" in v:
-            return 2
-        elif "2" in v or "dua" in v or "sedang" in v:
-            return 3
-        elif "1" in v or "satu" in v or "murah" in v:
-            return 4
-        elif "500" in v or "lima ratus" in v or "sangat murah" in v:
-            return 5
-
-    # C2: Penjualan (Benefit)
-    if "porsi" in v or "ekor" in v:
-        if "5" in v and "10" in v:
-            return 1
-        elif "15" in v or "30" in v:
-            return 2
-        elif "50" in v:
-            return 3
-        elif "100" in v:
-            return 4
-        else:
-            return 5
-
-    # C3: Bahan Baku (Benefit)
-    if "sulit" in v:
-        if "agak" in v:
-            return 2
-        else:
-            return 1
-    elif "mudah" in v:
-        if "cukup" in v:
-            return 4
-        elif "sangat" in v:
-            return 5
-        else:
-            return 3
-
-    # C4: Fasilitas (Benefit)
-    if any(x in v for x in ["barcode", "kulkas", "kursi", "tempat duduk"]):
-        items = v.split(",")
-        return min(5, len(items))
-
-    # C5: Persaingan (Cost)
-    if "ketat" in v:
-        return 1
-    elif "sangat mempengaruhi" in v:
-        return 2
-    elif "cukup" in v:
+    # --- C1: Sewa (Cost)
+    if "sewa" in column_name:
+        if any(x in v for x in ["mahal", "tinggi"]): return 1
+        if any(x in v for x in ["sedang", "normal"]): return 3
+        if any(x in v for x in ["murah", "rendah"]): return 5
         return 3
-    elif "tidak" in v:
-        return 4
-    elif "belum" in v:
-        return 5
 
+    # --- C2: Penjualan (Benefit)
+    if "jual" in column_name or "penjualan" in column_name:
+        if "100" in v: return 5
+        if "50" in v: return 4
+        if any(x in v for x in ["30", "15"]): return 3
+        if any(x in v for x in ["10", "5"]): return 2
+        return 1
+
+    # --- C3: Bahan Baku (Benefit)
+    if "bahan" in column_name:
+        if "sulit" in v: return 1
+        if "cukup" in v: return 3
+        if "mudah" in v: return 5
+        return 4
+
+    # --- C4: Fasilitas (Benefit)
+    if "fasil" in column_name:
+        if any(x in v for x in ["lengkap", "banyak", "ada"]): return 5
+        if any(x in v for x in ["cukup", "sedang"]): return 3
+        return 2
+
+    # --- C5: Persaingan (Cost)
+    if "saing" in column_name or "persaing" in column_name:
+        if any(x in v for x in ["ketat", "tinggi"]): return 1
+        if "cukup" in v: return 3
+        if any(x in v for x in ["rendah", "tidak", "belum"]): return 5
+        return 2
+
+    # --- fallback ---
     try:
         return float(value)
     except:
-        return 0
+        return 3
 
 
-# --------------------------------------------
-# Bagian 4: Fungsi utama ANP (versi DataFrame)
-# --------------------------------------------
+# ======================================================
+# 2️⃣ FUNGSI PAIRWISE MATRIX (PER KRITERIA)
+# ======================================================
+def get_saaty_scale(diff_score):
+    mapping = {0: 1, 1: 3, 2: 5, 3: 7, 4: 9}
+    return mapping.get(int(abs(diff_score)), 9)
 
+
+def analyze_criteria(scores, criteria_name):
+    """
+    Membuat pairwise matrix, bobot, dan CR untuk 1 kriteria.
+    """
+    n = len(scores)
+    matrix = np.ones((n, n), dtype=float)
+
+    for i in range(n):
+        for j in range(n):
+            if i == j:
+                continue
+            diff = scores[i] - scores[j]
+            s_val = get_saaty_scale(diff)
+            matrix[i, j] = s_val if diff > 0 else (1 / s_val if diff < 0 else 1)
+
+    # Normalisasi dan bobot
+    col_sum = np.sum(matrix, axis=0)
+    norm_matrix = matrix / col_sum
+    weights = np.mean(norm_matrix, axis=1)
+    weights /= np.sum(weights)
+
+    # Konsistensi
+    lam_max = np.dot(col_sum, weights)
+    CI = (lam_max - n) / (n - 1)
+    RI_table = {1: 0, 2: 0, 3: 0.58, 4: 0.9, 5: 1.12}
+    CR = CI / RI_table[n] if n in RI_table and RI_table[n] != 0 else 0
+
+    return {
+        "Alternatif": [f"A{i+1}" for i in range(n)],
+        "Bobot": weights.tolist(),
+        "Matrix": matrix,
+        "CI": round(float(CI), 4),
+        "CR": round(float(CR), 4),
+    }
+
+
+# ======================================================
+# 3️⃣ FUNGSI UTAMA RUN ANP ANALYSIS
+# ======================================================
 def run_anp_analysis(df):
     """
-    Fungsi utama untuk menghitung ANP.
-    Input: DataFrame (bukan path file).
-    Output: dictionary hasil analisis.
+    Fungsi utama untuk menghitung ANP dari file upload user.
+    Output identik untuk terminal dan web Flask.
     """
-
     print("\n=== DEBUG ANP INPUT ===")
-    print("Tipe data diterima:", type(df))
-    print("========================\n")
-    
-    print("Kolom yang terbaca:", df.columns.tolist())
-    print("Jumlah kolom:", len(df.columns))
-    print("Contoh data baris pertama:")
-    print(df.head(1).to_string())
-    print("=============================================\n")
+    print("Kolom asli dari file:", df.columns.tolist())
+    print("=========================\n")
 
-    # ✅ Pastikan df adalah DataFrame valid
     if not isinstance(df, pd.DataFrame):
-        raise TypeError(f"Tipe data tidak valid untuk run_anp_analysis: {type(df)}")
+        raise TypeError("Input harus DataFrame (hasil baca CSV/XLSX)")
 
-    # Hapus baris kosong
     df = df.dropna(how="all")
 
-    # Ambil daftar kolom
-    cols = df.columns.tolist()
-    if len(cols) < 6:
-        raise ValueError("File harus memiliki minimal 6 kolom: Nama Usaha + 5 Kriteria.")
+    # --- 🔤 Normalisasi kolom agar seragam ---
+    df.columns = [str(c).strip().upper() for c in df.columns]
+    print("Kolom setelah normalisasi:", df.columns.tolist())
 
-    # Ambil 5 kolom terakhir sebagai kriteria
-    criteria_cols = cols[-5:]
-    alt_col = cols[0]  # kolom pertama dianggap nama usaha / alternatif
+    # --- Ambil kolom alternatif ---
+    alt_col = df.columns[0]
 
-    # Konversi teks → angka
-    df_numeric = df.copy()
+    # --- Deteksi otomatis kolom kriteria (C1–C5 bisa disertai nama panjang) ---
+    criteria_cols = []
+    for tag in ["C1", "C2", "C3", "C4", "C5"]:
+        found = next((c for c in df.columns if tag in c), None)
+        if found:
+            criteria_cols.append(found)
+
+    if len(criteria_cols) < 5:
+        raise ValueError(f"Data tidak lengkap: ditemukan {criteria_cols}, seharusnya ada C1–C5.")
+
+    print("Kolom kriteria yang dipakai:", criteria_cols)
+
+    # --- Konversi teks ke angka (fungsi translate_value sudah ada di atas) ---
+    df_num = df.copy()
     for col in criteria_cols:
-        df_numeric[col] = df_numeric[col].apply(lambda x: translate_value(col, x))
+        df_num[col] = df_num[col].apply(lambda x: float(translate_value(col, x)))
 
-    # Hitung bobot kriteria (default Saaty)
-    M, kriteria = build_default_matrix()
-    weights = get_eigenvector(M)
-    CI, CR = consistency_ratio(M, weights)
+    print("\n=== DEBUG KONVERSI TEKS ===")
+    print(df_num[[alt_col] + criteria_cols])
+    print("============================\n")
 
-    # Normalisasi kolom
-    norm_df = df_numeric.copy()
-    for col in criteria_cols:
-        total = norm_df[col].sum()
-        norm_df[col] = norm_df[col] / total if total > 0 else norm_df[col]
+    # --- Hitung bobot lokal untuk tiap kriteria ---
+    local_priorities = {}
+    for c in criteria_cols:
+        res = analyze_criteria(df_num[c].values, c)
+        local_priorities[c] = res
 
-    # Hitung skor ANP total
-    df_numeric["Skor_Akhir"] = np.dot(norm_df[criteria_cols], weights)
-    df_sorted = df_numeric.sort_values(by="Skor_Akhir", ascending=False)
+    # --- Matriks perbandingan antar kriteria (manual Saaty) ---
+    criteria = ["C1", "C2", "C3", "C4", "C5"]
+    n = len(criteria)
+    M = np.ones((n, n))
+    pairwise = {
+        ("C1", "C2"): 1/7,  # C2 > C1 (7)
+        ("C1", "C3"): 3,    # C1 > C3 (3)
+        ("C1", "C4"): 1/5,  # C4 > C1 (5)
+        ("C1", "C5"): 1/3,  # C5 > C1 (3)
+        
+        ("C2", "C3"): 9,    # C2 > C3 (9)
+        ("C2", "C4"): 3,    # C2 > C4 (3)
+        ("C2", "C5"): 5,    # C2 > C5 (5)
+        
+        ("C3", "C4"): 1/7,  # C4 > C3 (7)
+        ("C3", "C5"): 1/5,  # C5 > C3 (5)
+        
+        ("C4", "C5"): 3     # C4 > C5 (3)
+    }
+    for (a, b), val in pairwise.items():
+        i, j = criteria.index(a), criteria.index(b)
+        M[i, j] = val
+        M[j, i] = 1 / val
 
-    # Buat grafik hasil
+    # --- Hitung bobot global antar kriteria ---
+    col_sum = np.sum(M, axis=0)
+    norm_M = M / col_sum
+    crit_weights = np.mean(norm_M, axis=1)
+    crit_weights /= np.sum(crit_weights)
+
+    # --- Hitung konsistensi antar kriteria ---
+    lam_max = np.dot(col_sum, crit_weights)
+    CI_main = (lam_max - n) / (n - 1)
+    CR_main = CI_main / 1.12  # RI = 1.12 untuk n=5
+
+    # --- Hitung skor global tiap alternatif ---
+    alts = df[alt_col].tolist()
+    weighted = np.zeros((len(alts), len(criteria_cols)))
+    for j, c in enumerate(criteria_cols):
+        weighted[:, j] = np.array(local_priorities[c]["Bobot"]) * crit_weights[j]
+
+    skor_global = np.sum(weighted, axis=1)
+    result_df = pd.DataFrame({
+        "Alternatif": alts,
+        "Skor_Global": np.round(skor_global, 4),
+        "Persentase": [f"{w*100:.1f}%" for w in skor_global]
+    }).sort_values(by="Skor_Global", ascending=False)
+
+    # --- Simpan grafik ke folder static/charts ---
     plt.figure(figsize=(8, 5))
-    plt.barh(df_sorted[alt_col], df_sorted["Skor_Akhir"], color="#5D6D7E")
-    plt.xlabel("Nilai Prioritas ANP (0–1)")
-    plt.ylabel("Alternatif Lokasi Usaha")
-    plt.title("Hasil Analisis ANP (Default Saaty)")
+    plt.barh(result_df["Alternatif"], result_df["Skor_Global"], color="#5D6D7E")
+    plt.xlabel("Skor Global ANP (0–1)")
+    plt.ylabel("Alternatif")
+    plt.title("Hasil Analisis ANP Otomatis")
     plt.gca().invert_yaxis()
     plt.tight_layout()
 
@@ -209,34 +235,40 @@ def run_anp_analysis(df):
     plt.savefig(chart_path)
     plt.close()
 
-    # Kesimpulan otomatis
-    top3 = df_sorted.head(3).reset_index(drop=True)
-    summary = f"Lokasi terbaik adalah {top3.iloc[0,0]} dengan skor {top3.iloc[0,-1]:.3f}. "
+    # --- Kesimpulan otomatis ---
+    top3 = result_df.head(3).reset_index(drop=True)
+    summary = f"Lokasi terbaik adalah {top3.iloc[0,0]} dengan skor {top3.iloc[0,1]:.3f}. "
     if len(top3) > 1:
-        summary += f"Peringkat kedua {top3.iloc[1,0]} ({top3.iloc[1,-1]:.3f}), "
+        summary += f"Peringkat kedua {top3.iloc[1,0]} ({top3.iloc[1,1]:.3f}), "
     if len(top3) > 2:
-        summary += f"dan ketiga {top3.iloc[2,0]} ({top3.iloc[2,-1]:.3f})."
-    summary += f" CI={CI}, CR={CR}."
+        summary += f"dan ketiga {top3.iloc[2,0]} ({top3.iloc[2,1]:.3f})."
+    summary += f" (CI={CI_main:.3f}, CR={CR_main:.3f})"
 
-    # Hasil akhir dikembalikan
+    # --- Return hasil ke Flask ---
     return {
-        "ranking": df_sorted.to_dict(orient="records"),
+        "ranking": result_df.to_dict(orient="records"),
         "chart": "static/charts/hasil_anp.png",
-        "weights": dict(zip(kriteria, weights)),
-        "CI": CI,
-        "CR": CR,
+        "weights": dict(zip(criteria, crit_weights)),
+        "local_priorities": local_priorities,
+        "CI": round(float(CI_main), 4),
+        "CR": round(float(CR_main), 4),
         "summary": summary
     }
 
-# --------------------------------------------
-# Bagian 5: Tes mandiri (opsional)
-# --------------------------------------------
-if __name__ == "__main__":
-    M, kriteria = build_default_matrix()
-    weights = get_eigenvector(M)
-    CI, CR = consistency_ratio(M, weights)
 
-    print("=== Bobot Kriteria (default) ===")
-    for k, w in zip(kriteria, weights):
-        print(f"{k}: {w:.4f}")
-    print(f"CI = {CI}, CR = {CR}")
+# ======================================================
+#  TEST MANUAL
+# ======================================================
+if __name__ == "__main__":
+    print("=== TEST RUN ANP ===")
+    data = {
+        "Alternatif": ["A1", "A2", "A3", "A4", "A5"],
+        "C1 (Biaya Sewa)": [1, 1, 1, 2, 2],
+        "C2 (Penjualan/hari)": [3, 1, 2, 1, 1],
+        "C3 (Bahan Baku)": [5, 4, 5, 5, 5],
+        "C4 (Fasilitas)": [4, 4, 4, 4, 3],
+        "C5 (Persaingan)": [2, 1, 3, 1, 3],
+    }
+    df = pd.DataFrame(data)
+    hasil = run_anp_analysis(df)
+    print(hasil["summary"])

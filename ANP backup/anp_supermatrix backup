@@ -1,0 +1,152 @@
+# ============================================
+# ANP Supermatrix & Limit Matrix Generator
+# ============================================
+
+import numpy as np
+import pandas as pd
+import matplotlib
+matplotlib.use("Agg")  # backend non-GUI (aman untuk Flask)
+import matplotlib.pyplot as plt
+import os
+
+# Folder untuk menyimpan grafik hasil
+BASE_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+CHART_DIR = os.path.join(BASE_DIR, "static", "charts")
+os.makedirs(CHART_DIR, exist_ok=True)
+
+# --------------------------------------------
+# Fungsi bantu dasar
+# --------------------------------------------
+
+def normalize_matrix(M):
+    """Normalisasi kolom matriks agar jumlah kolom = 1."""
+    col_sum = np.sum(M, axis=0)
+    col_sum[col_sum == 0] = 1  # hindari pembagian 0
+    return M / col_sum
+
+
+def compute_limit_matrix(W, max_iter=100, tol=1e-6):
+    """
+    Hitung limit matrix dengan mengalikan supermatrix berulang-ulang
+    hingga hasilnya stabil.
+    """
+    W_limit = W.copy()
+    for i in range(max_iter):
+        new_W = np.dot(W_limit, W)
+        if np.allclose(new_W, W_limit, atol=tol):
+            print(f"Konvergen pada iterasi ke-{i+1}")
+            break
+        W_limit = new_W
+    return W_limit
+
+
+# --------------------------------------------
+# Bagian 3: Membangun Supermatrix dari hasil ANP Processor
+# --------------------------------------------
+
+def build_supermatrix_from_anp(anp_result):
+    """
+    Bangun Supermatrix dari hasil ANP processor (tanpa dummy data).
+    anp_result: dict hasil run_anp_analysis(df)
+    """
+    print("=== MEMBANGUN SUPERMATRIX DARI HASIL ANP ===")
+
+    # Ambil data bobot dari hasil anp_processor
+    kriteria_weights = np.array(list(anp_result["weights"].values()))  # bobot kriteria (C1–C5)
+    df_ranking = pd.DataFrame(anp_result["ranking"])  # hasil ranking alternatif
+    alt_scores = df_ranking["Skor_Akhir"].values      # skor alternatif (hasil ANP)
+
+    # Normalisasi agar proporsional
+    kriteria_weights = kriteria_weights / np.sum(kriteria_weights)
+    alt_scores = alt_scores / np.sum(alt_scores)
+
+    n_criteria = len(kriteria_weights)
+    n_alternatives = len(alt_scores)
+    total_nodes = n_criteria + n_alternatives
+
+    # Matriks Supermatrix kosong
+    W = np.zeros((total_nodes, total_nodes))
+
+    # ---------------------------------------------------
+    # Blok 1: Hubungan antar Kriteria (C1–C5)
+    # Gunakan hasil Saaty (dari anp_processor)
+    # ---------------------------------------------------
+    from anp.anp_processor import build_default_matrix, normalize_matrix
+    M, _ = build_default_matrix()
+    W[:n_criteria, :n_criteria] = normalize_matrix(M)
+
+    # ---------------------------------------------------
+    # Blok 2: Hubungan Alternatif → Kriteria
+    # Gunakan hasil skor ANP aktual
+    # ---------------------------------------------------
+    for i in range(n_criteria):
+        W[n_criteria:, i] = alt_scores
+
+    # ---------------------------------------------------
+    # Blok 3: Hubungan Kriteria → Tujuan (goal)
+    # (Sebenarnya opsional dalam kasus ini)
+    # ---------------------------------------------------
+    for i in range(n_criteria):
+        W[i, -1] = kriteria_weights[i]
+
+    print("Supermatrix berhasil dibangun.")
+    return W, kriteria_weights, alt_scores
+
+# --------------------------------------------
+# Bagian 4: Visualisasi & Integrasi Supermatrix dan Limit Matrix
+# --------------------------------------------
+
+def visualize_supermatrix(W, title="Supermatrix Awal"):
+    """Membuat heatmap dari Supermatrix untuk visualisasi."""
+    plt.figure(figsize=(8, 6))
+    plt.imshow(W, cmap="Blues", interpolation="nearest")
+    plt.colorbar(label="Bobot Keterkaitan")
+    plt.title(title)
+    plt.xlabel("Kolom (Dari Elemen)")
+    plt.ylabel("Baris (Menuju Elemen)")
+    plt.tight_layout()
+
+    filename = "supermatrix.png" if "Awal" in title else "limit_matrix.png"
+    chart_path = os.path.join(CHART_DIR, filename)
+    plt.savefig(chart_path)
+    plt.close()
+    return f"static/charts/{filename}"
+
+
+def process_supermatrix_analysis(anp_result):
+    """
+    Fungsi utama:
+    - Bangun Supermatrix dari hasil ANP processor
+    - Hitung Limit Matrix
+    - Buat visualisasi heatmap
+    - Kembalikan hasil untuk ditampilkan di Flask
+    """
+    print("=== PROSES SUPERMATRIX ANALYSIS DIMULAI ===")
+
+    # Bangun Supermatrix
+    W, kriteria_weights, alt_scores = build_supermatrix_from_anp(anp_result)
+
+    # Hitung Limit Matrix
+    limit_W = compute_limit_matrix(W, max_iter=200, tol=1e-8)
+
+    # Buat grafik
+    super_img = visualize_supermatrix(W, "Supermatrix Awal")
+    limit_img = visualize_supermatrix(limit_W, "Limit Matrix (Konvergen)")
+
+    # Ambil bobot akhir (baris terakhir dari limit matrix)
+    final_priority = np.mean(limit_W, axis=1)
+
+    # Buat tabel hasil
+    df_result = pd.DataFrame({
+        "Elemen": [f"C{i+1}" for i in range(len(kriteria_weights))] +
+                  [f"A{i+1}" for i in range(len(alt_scores))],
+        "Bobot Akhir (Limit Matrix)": np.round(final_priority, 4)
+    }).sort_values(by="Bobot Akhir (Limit Matrix)", ascending=False)
+
+    print("=== PROSES SUPERMATRIX ANALYSIS SELESAI ===")
+
+    return {
+        "supermatrix_chart": super_img,
+        "limitmatrix_chart": limit_img,
+        "final_table": df_result.to_dict(orient="records"),
+    }
