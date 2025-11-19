@@ -6,19 +6,17 @@ import pandas as pd
 import os
 
 # === Import modul ANP ===
-# Pastikan folder 'anp' memiliki file '__init__.py' (boleh kosong) agar dikenali sebagai modul
-from anp.anp_processor import run_anp_analysis 
+from anp.anp_processor import run_anp_analysis
 
 # === Inisialisasi Flask ===
 app = Flask(__name__)
-app.secret_key = "supersecretkey"  # Ganti dengan key yang lebih aman di production
+app.secret_key = "supersecretkey"  # Ganti dengan key yang aman
 
-# === PATH DATABASE ===
+# === PATH DATABASE & UPLOAD ===
 BASE_DIR = os.path.abspath(os.path.dirname(__file__))
 DB_PATH = os.path.join(BASE_DIR, "database", "spk_anp.db")
 UPLOAD_FOLDER = os.path.join(BASE_DIR, "uploads")
 
-# Buat folder jika belum ada
 os.makedirs(os.path.join(BASE_DIR, "database"), exist_ok=True)
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 
@@ -28,7 +26,6 @@ app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
 app.config["UPLOAD_FOLDER"] = UPLOAD_FOLDER
 ALLOWED_EXTENSIONS = {"csv", "xlsx", "xls"}
 
-# === Inisialisasi SQLAlchemy ===
 db = SQLAlchemy(app)
 
 # === MODEL DATABASE ===
@@ -39,7 +36,7 @@ class User(db.Model):
     picture = db.Column(db.String(250))
 
 # === GOOGLE OAUTH CONFIG ===
-os.environ["OAUTHLIB_INSECURE_TRANSPORT"] = "1"  # Hapus ini di production (HTTPS)
+os.environ["OAUTHLIB_INSECURE_TRANSPORT"] = "1"
 
 google_bp = make_google_blueprint(
     client_id="202395510870-3o4jasv2hbtjksqbm0m2c2ihs4l66g7c.apps.googleusercontent.com",
@@ -68,20 +65,18 @@ def login():
 
 @app.route("/login/google")
 def google_login():
-    return redirect(url_for("google.login"))
+    if not google.authorized:
+        return redirect(url_for("google.login"))
+    return redirect(url_for("dashboard"))
 
 @app.route("/login/authorized")
 def after_login():
     if not google.authorized:
         return redirect(url_for("google.login"))
-
     resp = google.get("/oauth2/v2/userinfo")
     if not resp.ok:
         return redirect(url_for("google.login"))
-
     user_info = resp.json()
-
-    # Cek user di database atau buat baru
     user = User.query.filter_by(email=user_info["email"]).first()
     if not user:
         user = User(
@@ -91,12 +86,9 @@ def after_login():
         )
         db.session.add(user)
         db.session.commit()
-
-    # Simpan ke session
     session["user_id"] = user.id
     session["user_name"] = user.name
     session["user_picture"] = user.picture
-
     return redirect(url_for("dashboard"))
 
 @app.route("/dashboard")
@@ -112,8 +104,8 @@ def dashboard():
 @app.route("/upload", methods=["GET", "POST"])
 def upload_file():
     """
-    Upload file Excel/CSV berisi kalimat. 
-    Konversi otomatis ke angka dilakukan DI DALAM anp_processor.py.
+    Upload file Excel/CSV. 
+    PENTING: Konversi otomatis dilakukan di DALAM anp_processor.py, BUKAN di sini.
     """
     if "user_id" not in session:
         return redirect(url_for("login"))
@@ -133,7 +125,7 @@ def upload_file():
         filepath = os.path.join(app.config["UPLOAD_FOLDER"], filename)
         file.save(filepath)
 
-        # === 1️⃣ Baca file pakai Pandas ===
+        # === 1️⃣ BACA FILE ===
         try:
             if filename.endswith(".csv"):
                 df = pd.read_csv(filepath, sep=";", engine="python")
@@ -141,19 +133,20 @@ def upload_file():
                     df = pd.read_csv(filepath, sep=",", engine="python")
             else:
                 df = pd.read_excel(filepath)
-
+            
+            # Debug: Cek apakah data terbaca dengan benar
             print("\n=== DEBUG UPLOAD FILE (APP.PY) ===")
-            print("Kolom terbaca:", df.columns.tolist())
-            print("Data Preview:", df.head(1))
+            print("Kolom:", df.columns.tolist())
+            print("Sample Data:\n", df.head(2))
             print("==================================\n")
 
         except Exception as e:
             flash(f"❌ Gagal membaca file: {e}")
             return redirect(request.url)
 
-        # === 2️⃣ Jalankan perhitungan ANP (Langsung kirim DF Mentah) ===
+        # === 2️⃣ HITUNG ANP (TANPA KONVERSI MANUAL DI SINI) ===
         try:
-            # PENTING: Jangan konversi di sini! Biarkan run_anp_analysis yang handle.
+            # Langsung kirim df mentah ke processor
             result_data = run_anp_analysis(df)
 
             results = result_data["ranking"]
@@ -164,21 +157,19 @@ def upload_file():
                 "CR": result_data["CR"],
                 "summary": result_data["summary"],
             }
-
-            # Ambil data tambahan jika ada (opsional)
             supermatrix_html = result_data.get("supermatrix_html", "")
             limitmatrix_html = result_data.get("limitmatrix_html", "")
 
         except Exception as e:
-            print(f"ERROR ANP: {e}") # Print error ke terminal untuk debug
+            print(f"ERROR ANP: {e}") 
             flash(f"❌ Terjadi kesalahan saat menghitung ANP: {e}")
             return redirect(request.url)
 
-        # === 3️⃣ Kirim hasil ke halaman HTML ===
+        # === 3️⃣ KIRIM KE TEMPLATE ===
         return render_template(
             "upload.html",
             uploaded=True,
-            tables=[df.to_html(classes="table table-bordered", index=False)], # Tampilkan data asli
+            tables=[df.to_html(classes="table table-bordered", index=False)],
             chart=chart_path,
             results=results,
             info=info,

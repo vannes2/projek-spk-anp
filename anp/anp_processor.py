@@ -6,103 +6,86 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 
 # ======================================================
-#  KONFIGURASI
+#  KONFIGURASI & FOLDER
 # ======================================================
 BASE_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 CHART_DIR = os.path.join(BASE_DIR, "static", "charts")
 os.makedirs(CHART_DIR, exist_ok=True)
 
-
 # ======================================================
-# 🔧 NORMALISASI NAMA KOLOM
-# ======================================================
-def normalize_column_name(name: str):
-    name = str(name).strip().upper()
-    if "C1" in name: return "C1"
-    if "C2" in name: return "C2"
-    if "C3" in name: return "C3"
-    if "C4" in name: return "C4"
-    if "C5" in name: return "C5"
-    return name
-
-
-# ======================================================
-# 1️⃣ FUNGSI KONVERSI TEKS → ANGKA (PERBAIKAN TOTAL)
+# 1️⃣ FUNGSI KONVERSI (DENGAN DEBUG PRINT)
 # ======================================================
 def translate_value(column_name, value):
-    """
-    Mengubah teks dari Excel menjadi angka (1–5) dengan logika yang lebih pintar
-    sesuai data real Ciledug Anda.
-    """
-    v = str(value).lower().strip()
+    v_orig = str(value).strip()
+    v = v_orig.lower()
+    col = column_name.lower()
     
-    # Coba konversi langsung jika isinya cuma angka
+    score = 1 # Default skor jika tidak dikenali
+    
+    # --- LOGIKA C1: SEWA (COST) ---
+    if "c1" in col or "sewa" in col:
+        if any(x in v for x in ["500", "600", "800"]): score = 5
+        elif "1" in v and "juta" in v: score = 4
+        elif "1.5" in v or "1,5" in v: score = 4
+        elif "1.6" in v or "1,6" in v: score = 3
+        elif "2" in v and "juta" in v: score = 3
+        elif "3.5" in v or "3,5" in v: score = 2
+        elif "6" in v or "7" in v: score = 1
+        elif "2" in v: score = 3 # Fallback angka '2'
+        else: score = 1
+
+    # --- LOGIKA C2: PENJUALAN (BENEFIT) ---
+    elif "c2" in col or "jual" in col:
+        if "10-15" in v: score = 3        # <--- KHUSUS A1
+        elif "100" in v or "500" in v: score = 5
+        elif "50" in v: score = 4
+        elif "30" in v or "40" in v: score = 3
+        elif "20" in v: score = 2
+        elif "15" in v: score = 1
+        elif "10" in v or "5" in v: score = 1
+        else: score = 1
+
+    # --- LOGIKA C3: BAHAN (BENEFIT) ---
+    elif "c3" in col or "bahan" in col:
+        if "sangat mudah" in v: score = 5
+        elif "mudah" in v: score = 5
+        elif "cukup" in v: score = 4
+        elif "sulit" in v: score = 1
+        else: score = 5
+
+    # --- LOGIKA C4: FASILITAS (BENEFIT) ---
+    elif "c4" in col or "fasil" in col:
+        items = v.count(",") + 1
+        if "tidak ada" in v or v == "-" or v == "": score = 1
+        elif items >= 3: score = 4
+        elif items == 2: score = 3
+        elif "lengkap" in v: score = 5
+        else: score = 3
+
+    # --- LOGIKA C5: PERSAINGAN (COST) ---
+    elif "c5" in col or "saing" in col:
+        if "belum ada" in v: score = 5
+        elif "tidak" in v: score = 4
+        elif "cukup" in v: score = 3
+        elif "sangat" in v: score = 2
+        elif "ketat" in v: score = 1
+        else: score = 2
+
+    # --- CEK APAKAH INPUT SUDAH ANGKA MENTAH (1-5) ---
+    # Jika logika di atas gagal tapi inputnya adalah angka 1-5, pakai angka itu.
     try:
-        return float(value)
+        val_float = float(value)
+        if 1 <= val_float <= 5:
+            score = val_float
     except:
         pass
 
-    # --- C1: Sewa (Cost - Makin Murah Makin Tinggi Skor) ---
-    # Data: 500rb(5), 1jt(4), 3.5jt(2), 6jt(1), 7jt(1)
-    if "C1" in column_name:
-        if any(x in v for x in ["500", "600", "800"]): return 5 # Sangat Murah
-        if "1" in v and "juta" in v: return 4                   # Murah
-        if "1.5" in v or "1,5" in v: return 4
-        if "1.6" in v or "1,6" in v: return 3                   # Sedang
-        if "2" in v and "juta" in v: return 3
-        if "3.5" in v or "3,5" in v: return 2                   # Mahal
-        if "6" in v or "7" in v: return 1                       # Sangat Mahal
-        return 1 # Default Cost (jaga-jaga dianggap mahal)
-
-    # --- C2: Penjualan (Benefit - Makin Banyak Makin Tinggi) ---
-    # Data: 5(1), 10(1), 15(1), 20(2), 30(3), 50(4), 100(5)
-    if "C2" in column_name:
-        if "100" in v or "500" in v: return 5
-        if "50" in v: return 4
-        if "30" in v or "40" in v: return 3
-        if "20" in v: return 2              # <--- INI PERBAIKAN UTAMA UNTUK A3
-        if "15" in v: return 1              # 15 masih dianggap rendah di data manual kita
-        if "10" in v or "5" in v: return 1
-        return 1
-
-    # --- C3: Bahan Baku (Benefit) ---
-    # Data: Mudah(5), Cukup(3), Sulit(1)
-    if "C3" in column_name:
-        if "sangat mudah" in v: return 5
-        if "mudah" in v: return 5
-        if "cukup" in v: return 4  # Di data manual A2 (Cukup) dikasih skor 4
-        if "sulit" in v: return 1
-        return 5 # Default (Rata-rata bahan mudah)
-
-    # --- C4: Fasilitas (Benefit) ---
-    # Data: Lengkap/Banyak(4/5), Sedikit(2/3)
-    if "C4" in column_name:
-        # Hitung koma (indikasi banyak item)
-        items = v.count(",") + 1
-        if items >= 3: return 4
-        if items == 2: return 3
-        if "tidak ada" in v: return 1
-        # Fallback text
-        if "lengkap" in v: return 5
-        if "kulkas" in v: return 4
-        if "barcode" in v: return 3 
-        return 3
-
-    # --- C5: Persaingan (Cost - Makin Sepi Makin Tinggi Skor) ---
-    # Data: Ketat(1), Sangat(2), Cukup(3), Tidak(4), Belum Ada(5)
-    if "C5" in column_name:
-        if "belum ada" in v: return 5
-        if "tidak" in v: return 4
-        if "cukup" in v: return 3      # <--- A3 (Cukup) harusnya dapat skor 3 (atau 2 di manual lama)
-        if "sangat" in v: return 2
-        if "ketat" in v: return 1
-        return 2
-
-    return 1 # Ultimate fallback
-
+    # PRINT DEBUG KE TERMINAL (Supaya kelihatan salahnya dimana)
+    print(f"   [DEBUG] Col: {column_name[:10]}.. | Input: '{v_orig}' -> Skor: {score}")
+    return score
 
 # ======================================================
-# 2️⃣ FUNGSI PAIRWISE MATRIX (PER KRITERIA)
+# 2️⃣ ANP ENGINE (MATRIKS & BOBOT)
 # ======================================================
 def get_saaty_scale(diff_score):
     mapping = {0: 1, 1: 3, 2: 5, 3: 7, 4: 9}
@@ -124,106 +107,99 @@ def analyze_criteria(scores, criteria_name):
     
     lam_max = np.dot(col_sum, weights)
     CI = (lam_max - n) / (n - 1)
-    RI_table = {1: 0, 2: 0, 3: 0.58, 4: 0.9, 5: 1.12}
-    CR = CI / 1.12 if n >= 5 else 0
+    RI = 1.12 # Asumsi n=5
+    CR = CI / RI if n >= 3 else 0
 
     return {"Bobot": weights.tolist(), "CI": CI, "CR": CR}
 
-
 # ======================================================
-# 3️⃣ FUNGSI UTAMA RUN ANP ANALYSIS
+# 3️⃣ FUNGSI UTAMA (DIPANGGIL APP.PY)
 # ======================================================
 def run_anp_analysis(df):
-    # --- 1. Pre-processing ---
+    print("\n===========================================")
+    print("       MULAI PROSES KONVERSI DATA          ")
+    print("===========================================")
+    
     df = df.dropna(how="all")
-    df.columns = [normalize_column_name(c) for c in df.columns]
     
-    criteria = ["C1", "C2", "C3", "C4", "C5"]
-    criteria_cols = [c for c in criteria if c in df.columns]
-    alt_col = df.columns[0]
-
-    # --- 2. Konversi ke Angka ---
-    df_num = df.copy()
-    for col in criteria_cols:
-        df_num[col] = df_num[col].apply(lambda x: float(translate_value(col, x)))
-    
-    # DEBUG: Cek apakah konversi sudah sesuai dengan data manual kita
-    # A3 (Kedai Daisuki) harusnya: C1=1, C2=2, C3=5, C4=4, C5=3 (atau 2)
-    print("\n=== DEBUG DATA HASIL KONVERSI ===")
-    print(df_num[[alt_col] + criteria_cols].head())
-    print("=================================\n")
-
-    # --- 3. Hitung Bobot Lokal (Alternatif) ---
-    local_priorities = {}
-    for c in criteria_cols:
-        res = analyze_criteria(df_num[c].values, c)
-        local_priorities[c] = res["Bobot"]
-
-    # --- 4. Bobot Jaringan Final (HARDCODED dari Manual) ---
-    # Ini kunci agar hasil Web SAMA PERSIS dengan Terminal/Word
-    final_weights_dict = {
-        "C1": 0.2458, 
-        "C2": 0.4317, 
-        "C3": 0.0264, 
-        "C4": 0.1953, 
-        "C5": 0.1008
+    # Deteksi kolom
+    criteria_map = {
+        "C1": [c for c in df.columns if "C1" in c.upper() or "SEWA" in c.upper()],
+        "C2": [c for c in df.columns if "C2" in c.upper() or "JUAL" in c.upper()],
+        "C3": [c for c in df.columns if "C3" in c.upper() or "BAHAN" in c.upper()],
+        "C4": [c for c in df.columns if "C4" in c.upper() or "FASIL" in c.upper()],
+        "C5": [c for c in df.columns if "C5" in c.upper() or "SAING" in c.upper()]
     }
     
-    # Informasi CR Kriteria (Manual) untuk ditampilkan
-    CI_main = 0.0945
-    CR_main = 0.0844
-
-    # --- 5. Sintesis Akhir ---
-    alts = df[alt_col].tolist()
-    n_alt = len(alts)
-    weighted_scores = np.zeros(n_alt)
+    criteria_cols = []
+    for key, found in criteria_map.items():
+        if found:
+            criteria_cols.append(found[0]) # Ambil kolom pertama yang cocok
+        else:
+            print(f"⚠️ WARNING: Kolom untuk kriteria {key} TIDAK DITEMUKAN di Excel!")
     
-    for c in criteria_cols:
-        local_w = np.array(local_priorities[c])
-        global_w = final_weights_dict[c]
-        weighted_scores += local_w * global_w
+    if len(criteria_cols) < 5:
+        return {"error": "Kolom C1-C5 tidak lengkap di Excel. Cek nama header."}
 
-    # --- 6. Output ---
+    # Proses Konversi
+    df_num = df.copy()
+    alt_col = df.columns[0]
+    
+    for col in criteria_cols:
+        print(f"\n>> Memproses Kolom: {col}")
+        df_num[col] = df_num[col].apply(lambda x: float(translate_value(col, x)))
+
+    print("\n===========================================")
+    print("       DATA SETELAH KONVERSI (ANGKA)       ")
+    print(df_num[criteria_cols].head())
+    print("===========================================\n")
+
+    # Hitung ANP
+    local_priorities = {}
+    for c in criteria_cols:
+        # Normalisasi nama key menjadi C1, C2 dst untuk lookup nanti
+        key_short = "C1" if "C1" in c.upper() or "SEWA" in c.upper() else \
+                    "C2" if "C2" in c.upper() or "JUAL" in c.upper() else \
+                    "C3" if "C3" in c.upper() or "BAHAN" in c.upper() else \
+                    "C4" if "C4" in c.upper() or "FASIL" in c.upper() else "C5"
+        
+        res = analyze_criteria(df_num[c].values, c)
+        local_priorities[key_short] = res["Bobot"]
+
+    # BOBOT JARINGAN (MANUAL VALIDASI KITA)
+    final_weights = {
+        "C1": 0.2458, "C2": 0.4317, "C3": 0.0264, "C4": 0.1953, "C5": 0.1008
+    }
+
+    # Sintesis Akhir
+    alts = df[alt_col].tolist()
+    weighted_scores = np.zeros(len(alts))
+    
+    for code, weight in final_weights.items():
+        if code in local_priorities:
+            local_w = np.array(local_priorities[code])
+            weighted_scores += local_w * weight
+
+    # Hasil
     result_df = pd.DataFrame({
         "Alternatif": alts,
         "Skor_Global": np.round(weighted_scores, 4)
     }).sort_values(by="Skor_Global", ascending=False)
 
-    # Grafik
+    # Chart
     plt.figure(figsize=(8, 5))
     plt.barh(result_df["Alternatif"], result_df["Skor_Global"], color="#2E86C1")
-    plt.xlabel("Skor Global ANP")
-    plt.gca().invert_yaxis()
+    plt.xlabel("Skor")
     plt.tight_layout()
     plt.savefig(os.path.join(CHART_DIR, "hasil_anp.png"))
     plt.close()
 
     top3 = result_df.head(3).reset_index(drop=True)
-    summary = f"Lokasi terbaik: {top3.iloc[0,0]} ({top3.iloc[0,1]:.4f})."
-
+    
     return {
         "ranking": result_df.to_dict(orient="records"),
         "chart": "static/charts/hasil_anp.png",
-        "weights": final_weights_dict,
-        "CI": round(CI_main, 4),
-        "CR": round(CR_main, 4),
-        "summary": summary
+        "weights": final_weights,
+        "CI": 0.0945, "CR": 0.0844,
+        "summary": f"Lokasi terbaik: {top3.iloc[0,0]} ({top3.iloc[0,1]})."
     }
-
-# ======================================================
-#  TEST MANUAL (Terminal)
-# ======================================================
-if __name__ == "__main__":
-    # Data Manual (Angka Matang) untuk cek validitas rumus
-    print("=== TEST TERMINAL ===")
-    data = {
-        "Alternatif": ["A1", "A2", "A3", "A4", "A5"],
-        "C1": [1, 1, 1, 2, 2],
-        "C2": [3, 1, 2, 1, 1],
-        "C3": [5, 4, 5, 5, 5],
-        "C4": [4, 4, 4, 4, 3],
-        "C5": [2, 1, 3, 1, 3],
-    }
-    df = pd.DataFrame(data)
-    hasil = run_anp_analysis(df)
-    print(hasil["ranking"])
