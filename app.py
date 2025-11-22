@@ -2,15 +2,17 @@ from flask import Flask, redirect, url_for, session, render_template, request, f
 from flask_sqlalchemy import SQLAlchemy
 from flask_dance.contrib.google import make_google_blueprint, google
 from werkzeug.utils import secure_filename
+from werkzeug.security import generate_password_hash, check_password_hash # Import tambahan untuk password
 import pandas as pd
 import os
 
 # === Import modul ANP ===
+# Pastikan folder 'anp' dan file 'anp_processor.py' tetap ada di tempatnya
 from anp.anp_processor import run_anp_analysis
 
 # === Inisialisasi Flask ===
 app = Flask(__name__)
-app.secret_key = "supersecretkey"  # Ganti dengan key yang aman
+app.secret_key = "supersecretkey"  # Ganti dengan key yang aman untuk production
 
 # === PATH DATABASE & UPLOAD ===
 BASE_DIR = os.path.abspath(os.path.dirname(__file__))
@@ -33,9 +35,12 @@ class User(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(100))
     email = db.Column(db.String(120), unique=True)
+    # Password boleh kosong (nullable) khusus untuk user yang login via Google
+    password = db.Column(db.String(255), nullable=True) 
     picture = db.Column(db.String(250))
 
 # === GOOGLE OAUTH CONFIG ===
+# Hapus baris ini jika sudah deploy ke production (HTTPS)
 os.environ["OAUTHLIB_INSECURE_TRANSPORT"] = "1"
 
 google_bp = make_google_blueprint(
@@ -54,15 +59,72 @@ app.register_blueprint(google_bp, url_prefix="/login")
 def allowed_file(filename):
     return "." in filename and filename.rsplit(".", 1)[1].lower() in ALLOWED_EXTENSIONS
 
-# === ROUTES ===
+# === ROUTES UTAMA ===
 @app.route("/")
 def index():
     return render_template("landing.html")
 
-@app.route("/login")
+# --- FITUR REGISTER (BARU) ---
+@app.route("/register", methods=["GET", "POST"])
+def register():
+    if request.method == "POST":
+        name = request.form.get("name")
+        email = request.form.get("email")
+        password = request.form.get("password")
+
+        # Validasi sederhana
+        if not name or not email or not password:
+            flash("⚠️ Semua kolom wajib diisi!", "warning")
+            return redirect(url_for("register"))
+
+        # Cek apakah email sudah ada
+        existing_user = User.query.filter_by(email=email).first()
+        if existing_user:
+            flash("⚠️ Email sudah terdaftar! Silakan login.", "warning")
+            return redirect(url_for("login"))
+
+        # Hash password dan simpan
+        hashed_pw = generate_password_hash(password, method='pbkdf2:sha256')
+        new_user = User(
+            name=name, 
+            email=email, 
+            password=hashed_pw, 
+            picture=None # User manual tidak punya foto profil google
+        )
+        
+        db.session.add(new_user)
+        db.session.commit()
+
+        flash("✅ Pendaftaran berhasil! Silakan login.", "success")
+        return redirect(url_for("login"))
+
+    return render_template("register.html")
+
+# --- FITUR LOGIN MANUAL & GOOGLE (DIPERBARUI) ---
+@app.route("/login", methods=["GET", "POST"])
 def login():
+    # Jika User Submit Form Login Manual
+    if request.method == "POST":
+        email = request.form.get("email")
+        password = request.form.get("password")
+        
+        user = User.query.filter_by(email=email).first()
+
+        # Cek user ada DAN password cocok
+        if user and user.password and check_password_hash(user.password, password):
+            session["user_id"] = user.id
+            session["user_name"] = user.name
+            # Gunakan placeholder jika tidak ada foto (user manual)
+            session["user_picture"] = user.picture if user.picture else "https://ui-avatars.com/api/?name=" + user.name
+            return redirect(url_for("dashboard"))
+        else:
+            flash("❌ Email atau Password salah!", "danger")
+            return redirect(url_for("login"))
+
+    # Jika method GET (Buka halaman)
     return render_template("login.html")
 
+# --- GOOGLE AUTH ROUTES ---
 @app.route("/login/google")
 def google_login():
     if not google.authorized:
@@ -76,21 +138,26 @@ def after_login():
     resp = google.get("/oauth2/v2/userinfo")
     if not resp.ok:
         return redirect(url_for("google.login"))
+    
     user_info = resp.json()
     user = User.query.filter_by(email=user_info["email"]).first()
+    
     if not user:
         user = User(
             name=user_info["name"],
             email=user_info["email"],
             picture=user_info["picture"],
+            password=None # User Google tidak punya password
         )
         db.session.add(user)
         db.session.commit()
+    
     session["user_id"] = user.id
     session["user_name"] = user.name
     session["user_picture"] = user.picture
     return redirect(url_for("dashboard"))
 
+# --- DASHBOARD & LOGIC ---
 @app.route("/dashboard")
 def dashboard():
     if "user_id" not in session:
@@ -103,10 +170,6 @@ def dashboard():
 
 @app.route("/upload", methods=["GET", "POST"])
 def upload_file():
-    """
-    Upload file Excel/CSV. 
-    PENTING: Konversi otomatis dilakukan di DALAM anp_processor.py, BUKAN di sini.
-    """
     if "user_id" not in session:
         return redirect(url_for("login"))
 
@@ -125,7 +188,6 @@ def upload_file():
         filepath = os.path.join(app.config["UPLOAD_FOLDER"], filename)
         file.save(filepath)
 
-        # === 1️⃣ BACA FILE ===
         try:
             if filename.endswith(".csv"):
                 df = pd.read_csv(filepath, sep=";", engine="python")
@@ -134,21 +196,12 @@ def upload_file():
             else:
                 df = pd.read_excel(filepath)
             
-            # Debug: Cek apakah data terbaca dengan benar
-            print("\n=== DEBUG UPLOAD FILE (APP.PY) ===")
-            print("Kolom:", df.columns.tolist())
-            print("Sample Data:\n", df.head(2))
-            print("==================================\n")
-
         except Exception as e:
             flash(f"❌ Gagal membaca file: {e}")
             return redirect(request.url)
 
-        # === 2️⃣ HITUNG ANP (TANPA KONVERSI MANUAL DI SINI) ===
         try:
-            # Langsung kirim df mentah ke processor
             result_data = run_anp_analysis(df)
-
             results = result_data["ranking"]
             chart_path = result_data["chart"]
             info = {
@@ -165,7 +218,6 @@ def upload_file():
             flash(f"❌ Terjadi kesalahan saat menghitung ANP: {e}")
             return redirect(request.url)
 
-        # === 3️⃣ KIRIM KE TEMPLATE ===
         return render_template(
             "upload.html",
             uploaded=True,
