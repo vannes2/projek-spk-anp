@@ -2,7 +2,7 @@
 <html lang="id">
 <head>
     <meta charset="UTF-8">
-    <title>Proyeksi Keuangan - SPK ANP</title>
+    <title>Keuangan - SPK ANP</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/main.css') }}">
@@ -11,81 +11,110 @@
 
     <nav class="navbar navbar-expand-lg navbar-dark bg-success mb-4 shadow-sm">
         <div class="container">
-            <a class="navbar-brand fw-bold" href="{{ url_for('dashboard') }}">
-                <i class="fas fa-arrow-left me-2"></i>Kembali ke Dashboard
-            </a>
-            <div class="d-flex text-white">
-                <span class="me-3">Halo, {{ name }}</span>
+            <a class="navbar-brand fw-bold" href="{{ url_for('dashboard') }}"><i class="fas fa-arrow-left me-2"></i>Kembali</a>
+            <div class="d-flex text-white gap-2">
+                <span>{{ name }}</span>
                 <a href="{{ url_for('logout') }}" class="btn btn-danger btn-sm">Logout</a>
             </div>
         </div>
     </nav>
 
     <div class="container pb-5">
-        
-        <div class="text-center mb-5">
-            <h2 class="fw-bold text-success"><i class="fas fa-coins me-2"></i>Proyeksi Keuangan Otomatis</h2>
-            <p class="text-muted">Data ini diambil langsung dari file Excel yang Anda upload di menu SPK.</p>
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <div>
+                <h2 class="fw-bold text-success"><i class="fas fa-book-open me-2"></i>Buku Keuangan</h2>
+                <p class="text-muted">Catat penjualan makanan harian dan keuntungan UMKM.</p>
+            </div>
+            <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#modalAddSale">
+                <i class="fas fa-plus me-1"></i> Tambah Data
+            </button>
         </div>
 
-        {% if chart_url %}
-        <div class="card shadow-sm border-0 mb-4">
-            <div class="card-header bg-white fw-bold text-success">
-                <i class="fas fa-chart-bar me-2"></i>Grafik Potensi Pendapatan (1 Tahun ke Depan)
-            </div>
-            <div class="card-body text-center">
-                <img src="{{ chart_url }}" class="img-fluid rounded border" alt="Grafik Keuangan">
-            </div>
-        </div>
-        {% endif %}
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                {% for category, message in messages %}
+                    <div class="alert alert-{{ category }} py-2">{{ message }}</div>
+                {% endfor %}
+            {% endif %}
+        {% endwith %}
 
         <div class="card shadow-sm border-0">
-            <div class="card-header bg-white fw-bold text-primary">
-                <i class="fas fa-table me-2"></i>Rincian Kalkulasi
-            </div>
             <div class="card-body p-0">
                 <div class="table-responsive">
-                    <table class="table table-hover table-striped mb-0 align-middle">
-                        <thead class="table-success">
+                    <table class="table table-hover align-middle mb-0">
+                        <thead class="table-primary text-center">
                             <tr>
-                                <th>Lokasi / UMKM</th>
-                                <th>Data Asli (Excel)</th>
-                                <th>Estimasi per Bulan</th>
-                                <th>Proyeksi 1 Tahun</th>
+                                <th>No</th>
+                                <th>Nama Makanan</th>
+                                <th>Quantity</th>
+                                <th>Harga Jual</th>
+                                <th>Keuntungan</th>
+                                <th>Aksi</th>
                             </tr>
                         </thead>
-                        <tbody>
-                            {% for item in projections %}
+                        <tbody class="text-center">
+                            {% for item in sales %}
                             <tr>
-                                <td class="fw-bold text-dark">{{ item.name }}</td>
-                                <td class="text-muted small">{{ item.raw }}</td>
-                                <td class="text-primary fw-bold">
-                                    Rp {{ "{:,.0f}".format(item.monthly).replace(',', '.') }}
-                                </td>
-                                <td class="text-success fw-bold fs-5">
-                                    Rp {{ "{:,.0f}".format(item.yearly).replace(',', '.') }}
+                                <td>{{ loop.index }}</td>
+                                <td class="fw-bold text-start ps-4">{{ item.item_name }}</td>
+                                <td>{{ item.quantity }}</td>
+                                <td>{{ item.price | rupiah }}</td>
+                                <td class="text-success fw-bold">{{ item.profit | rupiah }}</td>
+                                <td>
+                                    <a href="{{ url_for('delete_sale', id=item.id) }}" class="btn btn-danger btn-sm py-0 px-2" onclick="return confirm('Hapus?')"><i class="fas fa-trash small"></i></a>
                                 </td>
                             </tr>
                             {% else %}
-                            <tr>
-                                <td colspan="4" class="text-center py-5 text-muted">
-                                    <i class="fas fa-exclamation-circle fa-2x mb-3"></i><br>
-                                    Data tidak ditemukan atau kolom Pendapatan (C2) tidak ada di Excel.
-                                </td>
-                            </tr>
+                            <tr><td colspan="6" class="py-5 text-muted">Belum ada data penjualan.</td></tr>
                             {% endfor %}
                         </tbody>
+                        <tfoot class="table-light fw-bold text-center border-top">
+                            <tr>
+                                <td colspan="4" class="text-end pe-3 py-3">Total Keuntungan:</td>
+                                <td class="text-success fs-5 py-3">{{ total_profit | rupiah }}</td>
+                                <td></td>
+                            </tr>
+                        </tfoot>
                     </table>
                 </div>
             </div>
         </div>
-        
-        <div class="mt-4 text-center">
-            <a href="{{ url_for('upload_file') }}" class="btn btn-outline-secondary">
-                <i class="fas fa-upload me-2"></i>Ganti Data Excel
-            </a>
-        </div>
+    </div>
 
+    <div class="modal fade" id="modalAddSale" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header bg-primary text-white">
+                    <h5 class="modal-title">Tambah Penjualan</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
+                <form action="{{ url_for('finance') }}" method="POST">
+                    <div class="modal-body">
+                        <div class="mb-3">
+                            <label class="form-label small">Nama Makanan</label>
+                            <input type="text" name="item_name" class="form-control" required>
+                        </div>
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label small">Qty</label>
+                                <input type="number" name="quantity" class="form-control" placeholder="0" min="1" required>
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label small">Harga Jual</label>
+                                <input type="number" name="price" class="form-control" placeholder="Rp (tanpa titik)" min="0" required>
+                            </div>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label small">Keuntungan</label>
+                            <input type="number" name="profit" class="form-control" placeholder="Rp (tanpa titik)" min="0" required>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="submit" class="btn btn-primary">Simpan</button>
+                    </div>
+                </form>
+            </div>
+        </div>
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
