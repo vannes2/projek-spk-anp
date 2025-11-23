@@ -1,4 +1,4 @@
-from flask import Flask, redirect, url_for, session, render_template, request, flash
+from flask import Flask, redirect, url_for, session, render_template, request, flash, make_response
 from flask_sqlalchemy import SQLAlchemy
 from flask_dance.contrib.google import make_google_blueprint, google
 from werkzeug.utils import secure_filename
@@ -6,8 +6,11 @@ from werkzeug.security import generate_password_hash, check_password_hash
 import pandas as pd
 import os
 import re
+import io
+from xhtml2pdf import pisa # Library PDF
 
 # === Import modul ANP ===
+# Pastikan folder 'anp' ada dan berisi anp_processor.py
 from anp.anp_processor import run_anp_analysis
 
 app = Flask(__name__)
@@ -47,7 +50,7 @@ class Sale(db.Model):
     price = db.Column(db.Float, nullable=False)
     profit = db.Column(db.Float, nullable=False)
 
-# === FILTER FORMAT RUPIAH (AGAR ADA TITIK) ===
+# === FILTER FORMAT RUPIAH ===
 @app.template_filter('rupiah')
 def rupiah_format(value):
     try:
@@ -65,7 +68,7 @@ google_bp = make_google_blueprint(
 )
 app.register_blueprint(google_bp, url_prefix="/login")
 
-# === HELPER ===
+# === HELPER FUNCTIONS ===
 def allowed_file(filename):
     return "." in filename and filename.rsplit(".", 1)[1].lower() in ALLOWED_EXTENSIONS
 
@@ -75,19 +78,24 @@ def convert_youtube_embed(url):
     match = re.match(youtube_regex, url)
     return f"https://www.youtube.com/embed/{match.group(6)}" if match else None
 
-# === ROUTES ===
+def create_pdf(html_content):
+    result = io.BytesIO()
+    pdf = pisa.pisaDocument(io.BytesIO(html_content.encode("UTF-8")), result)
+    if not pdf.err:
+        return result.getvalue()
+    return None
+
+# === ROUTES UTAMA ===
 @app.route("/")
 def index(): return render_template("landing.html")
 
 @app.route("/register", methods=["GET", "POST"])
 def register():
     if request.method == "POST":
-        name = request.form.get("name")
-        email = request.form.get("email")
-        password = request.form.get("password")
+        name, email, pwd = request.form.get("name"), request.form.get("email"), request.form.get("password")
         if User.query.filter_by(email=email).first():
             flash("Email sudah terdaftar.", "warning"); return redirect(url_for("login"))
-        db.session.add(User(name=name, email=email, password=generate_password_hash(password, method='pbkdf2:sha256'), picture=None))
+        db.session.add(User(name=name, email=email, password=generate_password_hash(pwd, method='pbkdf2:sha256'), picture=None))
         db.session.commit()
         flash("Berhasil daftar.", "success"); return redirect(url_for("login"))
     return render_template("register.html")
@@ -95,8 +103,7 @@ def register():
 @app.route("/login", methods=["GET", "POST"])
 def login():
     if request.method == "POST":
-        email = request.form.get("email")
-        password = request.form.get("password")
+        email, pwd = request.form.get("email"), request.form.get("password")
         user = User.query.filter_by(email=email).first()
         if user and user.password and check_password_hash(user.password, pwd):
             session["user_id"] = user.id; session["user_name"] = user.name
@@ -131,6 +138,7 @@ def dashboard():
     if "user_id" not in session: return redirect(url_for("login"))
     return render_template("dashboard.html", name=session["user_name"], picture=session["user_picture"])
 
+# --- SPK ROUTE ---
 @app.route("/upload", methods=["GET", "POST"])
 def upload_file():
     if "user_id" not in session: return redirect(url_for("login"))
@@ -140,6 +148,7 @@ def upload_file():
             filename = secure_filename(file.filename)
             filepath = os.path.join(app.config["UPLOAD_FOLDER"], filename)
             file.save(filepath)
+            session['uploaded_filepath'] = filepath 
             try:
                 df = pd.read_csv(filepath, sep=";", engine="python") if filename.endswith(".csv") else pd.read_excel(filepath)
                 if filename.endswith(".csv") and len(df.columns) == 1: df = pd.read_csv(filepath, sep=",", engine="python")
@@ -159,10 +168,10 @@ def upload_file():
             except Exception as e: flash(f"Error: {e}", "danger")
     return render_template("upload.html", uploaded=False, name=session["user_name"])
 
+# --- FINANCE ROUTE ---
 @app.route("/finance", methods=["GET", "POST"])
 def finance():
     if "user_id" not in session: return redirect(url_for("login"))
-    
     if request.method == "POST":
         item_name = request.form.get("item_name")
         quantity = int(request.form.get("quantity"))
@@ -172,12 +181,11 @@ def finance():
         new_sale = Sale(user_id=session["user_id"], item_name=item_name, quantity=quantity, price=price, profit=profit)
         db.session.add(new_sale)
         db.session.commit()
-        flash("Data berhasil disimpan!", "success")
+        flash("Data tersimpan!", "success")
         return redirect(url_for("finance"))
 
     sales_data = Sale.query.filter_by(user_id=session["user_id"]).all()
     total_profit = sum(s.profit for s in sales_data)
-
     return render_template("finance.html", name=session["user_name"], sales=sales_data, total_profit=total_profit)
 
 @app.route("/finance/delete/<int:id>")
@@ -187,8 +195,38 @@ def delete_sale(id):
     if sale.user_id == session["user_id"]:
         db.session.delete(sale)
         db.session.commit()
-        flash("Data dihapus.", "info")
     return redirect(url_for("finance"))
+
+# --- PDF DOWNLOAD ROUTES ---
+@app.route("/download/spk")
+def download_spk_pdf():
+    if "user_id" not in session: return redirect(url_for("login"))
+    filepath = session.get('uploaded_filepath')
+    if not filepath or not os.path.exists(filepath):
+        flash("Upload data dulu.", "warning"); return redirect(url_for("upload_file"))
+    try:
+        df = pd.read_csv(filepath, sep=";", engine="python") if filepath.endswith(".csv") else pd.read_excel(filepath)
+        if filepath.endswith(".csv") and len(df.columns) == 1: df = pd.read_csv(filepath, sep=",", engine="python")
+        result_data = run_anp_analysis(df)
+        html = render_template("pdf_spk.html", name=session["user_name"], results=result_data["ranking"], info=result_data)
+        pdf = create_pdf(html)
+        response = make_response(pdf)
+        response.headers['Content-Type'] = 'application/pdf'
+        response.headers['Content-Disposition'] = 'attachment; filename=Laporan_SPK.pdf'
+        return response
+    except Exception as e: flash(f"Gagal PDF: {e}", "danger"); return redirect(url_for("upload_file"))
+
+@app.route("/download/finance")
+def download_finance_pdf():
+    if "user_id" not in session: return redirect(url_for("login"))
+    sales_data = Sale.query.filter_by(user_id=session["user_id"]).all()
+    total_profit = sum(s.profit for s in sales_data)
+    html = render_template("pdf_finance.html", name=session["user_name"], sales=sales_data, total_profit=total_profit)
+    pdf = create_pdf(html)
+    response = make_response(pdf)
+    response.headers['Content-Type'] = 'application/pdf'
+    response.headers['Content-Disposition'] = 'attachment; filename=Laporan_Keuangan.pdf'
+    return response
 
 if __name__ == "__main__":
     with app.app_context(): db.create_all()

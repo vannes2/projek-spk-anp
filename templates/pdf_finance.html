@@ -1,0 +1,10 @@
+<!DOCTYPE html>
+<html>
+<head><style>body{font-family:sans-serif;padding:20px}h2{text-align:center}table{width:100%;border-collapse:collapse;margin-top:20px}th,td{border:1px solid #ddd;padding:8px;text-align:center}th{background-color:#e8f5e9}.total{font-weight:bold;text-align:right;margin-top:20px}</style></head>
+<body>
+    <h2>Laporan Keuangan</h2>
+    <p>User: {{ name }}</p>
+    <table><thead><tr><th>No</th><th>Makanan</th><th>Qty</th><th>Harga</th><th>Keuntungan</th></tr></thead><tbody>{% for item in sales %}<tr><td>{{ loop.index }}</td><td>{{ item.item_name }}</td><td>{{ item.quantity }}</td><td>{{ item.price | rupiah }}</td><td>{{ item.profit | rupiah }}</td></tr>{% endfor %}</tbody></table>
+    <div class="total">Total Profit: {{ total_profit | rupiah }}</div>
+</body>
+</html>

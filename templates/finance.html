@@ -2,121 +2,84 @@
 <html lang="id">
 <head>
     <meta charset="UTF-8">
-    <title>Keuangan - SPK ANP</title>
+    <title>Keuangan</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/main.css') }}">
 </head>
 <body class="bg-light">
 
-    <nav class="navbar navbar-expand-lg navbar-dark bg-success mb-4 shadow-sm">
-        <div class="container">
-            <a class="navbar-brand fw-bold" href="{{ url_for('dashboard') }}"><i class="fas fa-arrow-left me-2"></i>Kembali</a>
-            <div class="d-flex text-white gap-2">
-                <span>{{ name }}</span>
-                <a href="{{ url_for('logout') }}" class="btn btn-danger btn-sm">Logout</a>
-            </div>
+<nav class="navbar navbar-expand-lg navbar-dark bg-success mb-4 shadow-sm">
+    <div class="container">
+        <a class="navbar-brand fw-bold" href="{{ url_for('dashboard') }}">Dashboard</a>
+        <div class="d-flex text-white gap-2"><span>{{ name }}</span><a href="{{ url_for('logout') }}" class="btn btn-danger btn-sm">Logout</a></div>
+    </div>
+</nav>
+
+<div class="container pb-5">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h2 class="fw-bold text-success">Buku Keuangan</h2>
+            <p class="text-muted">Catat penjualan makanan harian dan keuntungan.</p>
         </div>
-    </nav>
-
-    <div class="container pb-5">
-        <div class="d-flex justify-content-between align-items-center mb-4">
-            <div>
-                <h2 class="fw-bold text-success"><i class="fas fa-book-open me-2"></i>Buku Keuangan</h2>
-                <p class="text-muted">Catat penjualan makanan harian dan keuntungan UMKM.</p>
-            </div>
-            <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#modalAddSale">
-                <i class="fas fa-plus me-1"></i> Tambah Data
-            </button>
-        </div>
-
-        {% with messages = get_flashed_messages(with_categories=true) %}
-            {% if messages %}
-                {% for category, message in messages %}
-                    <div class="alert alert-{{ category }} py-2">{{ message }}</div>
-                {% endfor %}
-            {% endif %}
-        {% endwith %}
-
-        <div class="card shadow-sm border-0">
-            <div class="card-body p-0">
-                <div class="table-responsive">
-                    <table class="table table-hover align-middle mb-0">
-                        <thead class="table-primary text-center">
-                            <tr>
-                                <th>No</th>
-                                <th>Nama Makanan</th>
-                                <th>Quantity</th>
-                                <th>Harga Jual</th>
-                                <th>Keuntungan</th>
-                                <th>Aksi</th>
-                            </tr>
-                        </thead>
-                        <tbody class="text-center">
-                            {% for item in sales %}
-                            <tr>
-                                <td>{{ loop.index }}</td>
-                                <td class="fw-bold text-start ps-4">{{ item.item_name }}</td>
-                                <td>{{ item.quantity }}</td>
-                                <td>{{ item.price | rupiah }}</td>
-                                <td class="text-success fw-bold">{{ item.profit | rupiah }}</td>
-                                <td>
-                                    <a href="{{ url_for('delete_sale', id=item.id) }}" class="btn btn-danger btn-sm py-0 px-2" onclick="return confirm('Hapus?')"><i class="fas fa-trash small"></i></a>
-                                </td>
-                            </tr>
-                            {% else %}
-                            <tr><td colspan="6" class="py-5 text-muted">Belum ada data penjualan.</td></tr>
-                            {% endfor %}
-                        </tbody>
-                        <tfoot class="table-light fw-bold text-center border-top">
-                            <tr>
-                                <td colspan="4" class="text-end pe-3 py-3">Total Keuntungan:</td>
-                                <td class="text-success fs-5 py-3">{{ total_profit | rupiah }}</td>
-                                <td></td>
-                            </tr>
-                        </tfoot>
-                    </table>
-                </div>
-            </div>
+        <div>
+            <a href="{{ url_for('download_finance_pdf') }}" class="btn btn-danger me-2"><i class="fas fa-file-pdf"></i> PDF</a>
+            <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#modalAddSale"><i class="fas fa-plus"></i> Tambah</button>
         </div>
     </div>
 
-    <div class="modal fade" id="modalAddSale" tabindex="-1">
-        <div class="modal-dialog">
-            <div class="modal-content">
-                <div class="modal-header bg-primary text-white">
-                    <h5 class="modal-title">Tambah Penjualan</h5>
-                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
-                </div>
-                <form action="{{ url_for('finance') }}" method="POST">
-                    <div class="modal-body">
-                        <div class="mb-3">
-                            <label class="form-label small">Nama Makanan</label>
-                            <input type="text" name="item_name" class="form-control" required>
-                        </div>
-                        <div class="row">
-                            <div class="col-md-6 mb-3">
-                                <label class="form-label small">Qty</label>
-                                <input type="number" name="quantity" class="form-control" placeholder="0" min="1" required>
-                            </div>
-                            <div class="col-md-6 mb-3">
-                                <label class="form-label small">Harga Jual</label>
-                                <input type="number" name="price" class="form-control" placeholder="Rp (tanpa titik)" min="0" required>
-                            </div>
-                        </div>
-                        <div class="mb-3">
-                            <label class="form-label small">Keuntungan</label>
-                            <input type="number" name="profit" class="form-control" placeholder="Rp (tanpa titik)" min="0" required>
-                        </div>
-                    </div>
-                    <div class="modal-footer">
-                        <button type="submit" class="btn btn-primary">Simpan</button>
-                    </div>
-                </form>
+    {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}{% for category, message in messages %}<div class="alert alert-{{ category }}">{{ message }}</div>{% endfor %}{% endif %}
+    {% endwith %}
+
+    <div class="card shadow-sm border-0">
+        <div class="card-body p-0">
+            <div class="table-responsive">
+                <table class="table table-hover align-middle mb-0 text-center">
+                    <thead class="table-primary">
+                        <tr><th>No</th><th>Makanan</th><th>Qty</th><th>Harga</th><th>Keuntungan</th><th>Aksi</th></tr>
+                    </thead>
+                    <tbody>
+                        {% for item in sales %}
+                        <tr>
+                            <td>{{ loop.index }}</td>
+                            <td class="text-start ps-4 fw-bold">{{ item.item_name }}</td>
+                            <td>{{ item.quantity }}</td>
+                            <td>{{ item.price | rupiah }}</td>
+                            <td class="text-success fw-bold">{{ item.profit | rupiah }}</td>
+                            <td><a href="{{ url_for('delete_sale', id=item.id) }}" class="btn btn-danger btn-sm" onclick="return confirm('Hapus?')"><i class="fas fa-trash"></i></a></td>
+                        </tr>
+                        {% else %}
+                        <tr><td colspan="6" class="py-4 text-muted">Belum ada data.</td></tr>
+                        {% endfor %}
+                    </tbody>
+                    <tfoot class="table-light fw-bold border-top">
+                        <tr><td colspan="4" class="text-end pe-3">Total Keuntungan:</td><td class="text-success">{{ total_profit | rupiah }}</td><td></td></tr>
+                    </tfoot>
+                </table>
             </div>
         </div>
     </div>
+</div>
 
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+<div class="modal fade" id="modalAddSale" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header bg-primary text-white"><h5 class="modal-title">Tambah Data</h5><button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button></div>
+            <form action="{{ url_for('finance') }}" method="POST">
+                <div class="modal-body">
+                    <div class="mb-3"><label>Nama Makanan</label><input type="text" name="item_name" class="form-control" required></div>
+                    <div class="row">
+                        <div class="col-md-6 mb-3"><label>Qty</label><input type="number" name="quantity" class="form-control" required></div>
+                        <div class="col-md-6 mb-3"><label>Harga</label><input type="number" name="price" class="form-control" placeholder="Tanpa titik" required></div>
+                    </div>
+                    <div class="mb-3"><label>Keuntungan</label><input type="number" name="profit" class="form-control" placeholder="Tanpa titik" required></div>
+                </div>
+                <div class="modal-footer"><button type="submit" class="btn btn-primary">Simpan</button></div>
+            </form>
+        </div>
+    </div>
+</div>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 </body>
 </html>
