@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <title>Proyeksi Keuangan - SPK ANP</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/main.css') }}">
+</head>
+<body class="bg-light">
+
+    <nav class="navbar navbar-expand-lg navbar-dark bg-success mb-4 shadow-sm">
+        <div class="container">
+            <a class="navbar-brand fw-bold" href="{{ url_for('dashboard') }}">
+                <i class="fas fa-arrow-left me-2"></i>Kembali ke Dashboard
+            </a>
+            <div class="d-flex text-white">
+                <span class="me-3">Halo, {{ name }}</span>
+                <a href="{{ url_for('logout') }}" class="btn btn-danger btn-sm">Logout</a>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container pb-5">
+        
+        <div class="text-center mb-5">
+            <h2 class="fw-bold text-success"><i class="fas fa-coins me-2"></i>Proyeksi Keuangan Otomatis</h2>
+            <p class="text-muted">Data ini diambil langsung dari file Excel yang Anda upload di menu SPK.</p>
+        </div>
+
+        {% if chart_url %}
+        <div class="card shadow-sm border-0 mb-4">
+            <div class="card-header bg-white fw-bold text-success">
+                <i class="fas fa-chart-bar me-2"></i>Grafik Potensi Pendapatan (1 Tahun ke Depan)
+            </div>
+            <div class="card-body text-center">
+                <img src="{{ chart_url }}" class="img-fluid rounded border" alt="Grafik Keuangan">
+            </div>
+        </div>
+        {% endif %}
+
+        <div class="card shadow-sm border-0">
+            <div class="card-header bg-white fw-bold text-primary">
+                <i class="fas fa-table me-2"></i>Rincian Kalkulasi
+            </div>
+            <div class="card-body p-0">
+                <div class="table-responsive">
+                    <table class="table table-hover table-striped mb-0 align-middle">
+                        <thead class="table-success">
+                            <tr>
+                                <th>Lokasi / UMKM</th>
+                                <th>Data Asli (Excel)</th>
+                                <th>Estimasi per Bulan</th>
+                                <th>Proyeksi 1 Tahun</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for item in projections %}
+                            <tr>
+                                <td class="fw-bold text-dark">{{ item.name }}</td>
+                                <td class="text-muted small">{{ item.raw }}</td>
+                                <td class="text-primary fw-bold">
+                                    Rp {{ "{:,.0f}".format(item.monthly).replace(',', '.') }}
+                                </td>
+                                <td class="text-success fw-bold fs-5">
+                                    Rp {{ "{:,.0f}".format(item.yearly).replace(',', '.') }}
+                                </td>
+                            </tr>
+                            {% else %}
+                            <tr>
+                                <td colspan="4" class="text-center py-5 text-muted">
+                                    <i class="fas fa-exclamation-circle fa-2x mb-3"></i><br>
+                                    Data tidak ditemukan atau kolom Pendapatan (C2) tidak ada di Excel.
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+        
+        <div class="mt-4 text-center">
+            <a href="{{ url_for('upload_file') }}" class="btn btn-outline-secondary">
+                <i class="fas fa-upload me-2"></i>Ganti Data Excel
+            </a>
+        </div>
+
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>
