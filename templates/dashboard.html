@@ -2,60 +2,112 @@
 <html lang="id">
 <head>
     <meta charset="UTF-8">
-    <title>Dashboard - SPK ANP</title>
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <title>SPK ANP | Dashboard</title>
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/main.css') }}">
 </head>
 <body class="page-dashboard">
 
-<nav class="navbar navbar-expand-lg navbar-dark bg-dark">
-    <div class="container">
-        <a class="navbar-brand" href="#">SPK System</a>
-        <div class="d-flex align-items-center text-white gap-3">
-            <span>Halo, {{ name }}</span>
-            {% if picture %} <img src="{{ picture }}" class="rounded-circle" width="35"> {% endif %}
-            <a href="{{ url_for('logout') }}" class="btn btn-sm btn-danger">Logout</a>
-        </div>
+<!-- NAVBAR -->
+<nav class="navbar navbar-expand-lg navbar-custom py-3">
+  <div class="container">
+    <a class="navbar-brand fw-bold text-white" href="{{ url_for('dashboard') }}">SPK ANP</a>
+
+    <div class="d-flex align-items-center text-white gap-3">
+        <div class="d-none d-md-block me-2 text-white small">Halo, {{ name }}</div>
+        {% if picture %}
+            <img src="{{ picture }}" class="rounded-circle" width="36" alt="avatar">
+        {% endif %}
+        <a href="{{ url_for('logout') }}" class="btn btn-sm btn-danger ms-2">Logout</a>
     </div>
+  </div>
 </nav>
 
-<header class="hero">
+<main>
+    <!-- HERO SECTION (Mirip Landing Page) -->
+    <header class="hero">
     <div class="container">
-        <h1>Sistem Pendukung Keputusan</h1>
-        <p>Platform analisis lokasi usaha dan manajemen keuangan UMKM.</p>
+        <h1 class="display-5 fw-bold">Dashboard — Sistem Pendukung Keputusan</h1>
+        <p class="lead text-muted">Kelola analisis lokasi usaha, lihat hasil ANP, dan catat keuangan UMKM Anda dari satu tempat.</p>
     </div>
-</header>
+    </header>
 
-<section class="features">
+    <!-- MENU FITUR -->
+    <section class="features">
     <div class="container">
-        <div class="row">
-            <div class="col-md-6 mb-4">
-                <a href="{{ url_for('upload_file') }}" class="card-link">
-                    <div class="card h-100 text-center">
-                        <div class="card-body">
-                            <img src="https://cdn-icons-png.flaticon.com/512/2921/2921222.png" width="80" class="mb-3">
-                            <h4 class="card-title">Analisis Lokasi</h4>
-                            <p class="card-text text-muted">Upload data Excel lokasi, hitung ANP, dan lihat video survei.</p>
-                        </div>
+    <div class="row g-4">
+
+      <!-- CARD ANALISIS LOKASI -->
+      <div class="col-lg-4 col-md-6">
+        <a href="{{ url_for('upload_file') }}" class="text-decoration-none text-reset">
+          <div class="card h-100 shadow-sm feature-card text-center p-4">
+            <img src="https://cdn-icons-png.flaticon.com/512/2921/2921222.png" alt="upload">
+            <h5 class="mt-3">Analisis Lokasi</h5>
+            <p class="text-muted small">Unggah Excel & jalankan ANP untuk rekomendasi lokasi terbaik.</p>
+          </div>
+        </a>
+      </div>
+
+      <!-- CARD CATATAN KEUANGAN -->
+      <div class="col-lg-4 col-md-6">
+        <a href="{{ url_for('finance') }}" class="text-decoration-none text-reset">
+          <div class="card h-100 shadow-sm feature-card text-center p-4">
+            <img src="https://cdn-icons-png.flaticon.com/512/2454/2454282.png" alt="finance">
+            <h5 class="mt-3">Catatan Keuangan</h5>
+            <p class="text-muted small">Catat penjualan, hitung keuntungan, dan ekspor laporan.</p>
+          </div>
+        </a>
+      </div>
+
+      <!-- RINGKASAN HASIL TERAKHIR -->
+      <div class="col-lg-4 col-md-12">
+        <div class="card h-100 shadow-sm p-3">
+          <div class="card-body">
+            <h5 class="card-title">Ringkasan Terakhir</h5>
+            <p class="text-muted small mb-2">Hasil analisis terbaru (jika tersedia) akan muncul di sini.</p>
+
+            {% if recent_results %}
+              <ul class="list-group list-group-flush">
+                {% for r in recent_results[:5] %}
+                  <li class="list-group-item d-flex justify-content-between align-items-center">
+                    <div>
+                      <strong>{{ r.Nama }}</strong><br>
+                      <small class="text-muted">Skor: {{ r.Skor_Global }}</small>
                     </div>
-                </a>
-            </div>
-            <div class="col-md-6 mb-4">
-                <a href="{{ url_for('finance') }}" class="card-link">
-                    <div class="card h-100 text-center">
-                        <div class="card-body">
-                            <img src="https://cdn-icons-png.flaticon.com/512/2454/2454282.png" width="80" class="mb-3">
-                            <h4 class="card-title">Catatan Keuangan</h4>
-                            <p class="card-text text-muted">Catat penjualan makanan harian dan hitung keuntungan.</p>
-                        </div>
-                    </div>
-                </a>
-            </div>
+
+                    {% if r.video_url %}
+                      <a href="{{ r.video_url }}" target="_blank" class="btn btn-outline-primary btn-sm">
+                        Preview
+                      </a>
+                    {% endif %}
+                  </li>
+                {% endfor %}
+              </ul>
+            {% else %}
+              <div class="text-center py-4 text-muted">
+                Belum ada hasil analisis. Silakan upload data.
+              </div>
+            {% endif %}
+
+          </div>
         </div>
-    </div>
-</section>
+      </div>
 
-<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    </div>
+
+  </div>
+    </section>
+</main>
+
+<!-- FOOTER -->
+<footer class="mt-5">
+  <div class="container">
+    <p>© 2025 SPK ANP | Sistem Pendukung Keputusan Analytic Network Process</p>
+  </div>
+</footer>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
 </body>
 </html>

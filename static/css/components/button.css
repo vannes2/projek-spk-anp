@@ -1,37 +1,39 @@
 /* =============================
-   COMPONENT: BUTTON
+   COMPONENT: BUTTON — Blue × Teal Modern
    ============================= */
 
-/* --- Style dasar untuk semua tombol --- */
+/* --- Style dasar tombol --- */
 .btn {
   display: inline-block;
   border-radius: var(--border-radius);
-  padding: 10px 20px;
-  font-weight: 500;
+  padding: 10px 24px;
+  font-weight: 600;
   font-family: var(--font-main);
   border: 2px solid transparent;
-  transition: var(--transition);
+  transition: all 0.25s ease;
   cursor: pointer;
 }
 
-/* --- Tombol utama (navbar, hero, dll) --- */
+/* ==== PRIMARY BUTTON (Putih → Blue–Teal) ==== */
 .btn-primary {
   background-color: white;
-  color: var(--primary-color);
+  color: #0D6EFD; /* biru utama */
   border: 2px solid white;
-  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.1);
+  box-shadow: 0 3px 8px rgba(0, 0, 0, 0.12);
 }
 
-/* Hover dan aktif (klik) efek */
+/* Hover */
 .btn-primary:hover,
 .btn-primary:focus,
 .btn-primary:active {
-  background-color: var(--accent-color);
-  color: black; /* ✅ Saat ditekan, warna teks jadi hitam */
-  border-color: var(--accent-color);
+  background: #20C997; /* teal accent */
+  color: white !important;
+  border-color: #20C997;
+  box-shadow: 0 6px 14px rgba(0, 0, 0, 0.18);
+  transform: translateY(-1px);
 }
 
-/* --- Tombol outline versi ringan (opsional) --- */
+/* ==== OUTLINE BUTTON (Transparent → White) ==== */
 .btn-outline-primary {
   background-color: transparent;
   color: white;
@@ -42,14 +44,17 @@
 .btn-outline-primary:focus,
 .btn-outline-primary:active {
   background-color: white;
-  color: var(--primary-color);
+  color: #0D6EFD; /* blue primary */
+  border-color: white;
+  transform: translateY(-1px);
 }
 
+/* ==== BUTTON PRESS EFFECT ==== */
 .btn:active {
-  transform: scale(0.97);
+  transform: scale(0.96);
 }
 
-/* Tombol Login Google */
+/* LOGIN GOOGLE BUTTON */
 .btn-google {
   background-color: white;
   border: 1px solid #d0d0d0;
@@ -60,7 +65,7 @@
   display: flex;
   justify-content: center;
   align-items: center;
-  transition: var(--transition);
+  transition: 0.25s ease;
 }
 
 .btn-google img {
@@ -70,7 +75,7 @@
 .btn-google:hover {
   background-color: #f5f5f5;
   border-color: #ccc;
-  color: var(--primary-color);
+  color: #0D6EFD;
   box-shadow: 0 2px 6px rgba(0, 0, 0, 0.1);
   transform: scale(0.98);
 }

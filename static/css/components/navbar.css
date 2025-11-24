@@ -1,43 +1,51 @@
+/* =============================
+   NAVBAR — Blue × Teal Modern
+   ============================= */
+
 .navbar {
-  background-color: var(--primary-color);
+  background: linear-gradient(90deg, #0D6EFD, #20C997); /* BLUE → TEAL */
   padding: 15px 0;
-  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+  box-shadow: 0 3px 12px rgba(0, 0, 0, 0.15);
 }
 
+/* Semua link (brand + menu) */
 .navbar a {
   color: white !important;
   text-decoration: none;
   margin: 0 10px;
-  transition: var(--transition);
+  font-weight: 500;
+  transition: 0.25s ease;
 }
 
 .navbar a:hover {
-  opacity: 0.8;
+  opacity: 0.85;
+  color: #ffffff !important;
 }
 
-/* Tombol di Navbar */
+/* Tombol di Navbar (Login, Daftar) */
 .navbar .btn {
   border-radius: var(--border-radius);
-  font-weight: 500;
-  padding: 8px 18px;
-  transition: var(--transition);
-  border: 2px solid white;
-  background-color: transparent;
-  color: white !important; /* pastikan teks putih normal */
+  font-weight: 600;
+  padding: 8px 20px;
+  background-color: rgba(255,255,255,0.15); /* soft white tint */
+  border: 2px solid rgba(255,255,255,0.6);
+  color: white !important;
+  backdrop-filter: blur(4px);
+  transition: 0.25s ease;
 }
 
-/* Saat hover / klik */
+/* Hover tombol */
 .navbar .btn:hover,
 .navbar .btn:focus,
 .navbar .btn:active {
   background-color: white !important;
-  color: var(--primary-color) !important; /* ✅ teks jadi abu-abu netral */
+  color: #0D6EFD !important; /* primary text */
   border-color: white;
-  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.15);
-  transform: scale(0.97);
+  box-shadow: 0 6px 15px rgba(0, 0, 0, 0.18);
+  transform: translateY(-1px);
 }
 
 /* Transisi lembut */
 .navbar .btn {
-  transition: all 0.3s ease-in-out;
+  transition: all 0.28s ease;
 }

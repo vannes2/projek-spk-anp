@@ -1,18 +1,24 @@
+/* =============================
+   FOOTER — Blue × Teal Modern
+   ============================= */
+
 footer {
-  background-color: var(--primary-color);
+  background: linear-gradient(90deg, #0D6EFD, #20C997); /* biru → teal */
   color: white;
   text-align: center;
-  padding: 20px 0;
-  font-size: 0.9rem;
+  padding: 22px 0;
+  font-size: 0.92rem;
+  box-shadow: 0 -4px 18px rgba(0, 0, 0, 0.15);
 }
 
+/* Link di footer */
 footer a {
-  color: #ecf0f1;
+  color: #E3FAFF; /* soft white–blue */
   text-decoration: underline;
-  transition: var(--transition);
+  transition: 0.25s ease;
 }
 
 footer a:hover {
-  color: white;
-  opacity: 0.8;
+  color: #ffffff;
+  opacity: 0.9;
 }

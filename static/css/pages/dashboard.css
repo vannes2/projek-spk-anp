@@ -1,103 +1,160 @@
 /* =============================
-   PAGE: DASHBOARD
+   PAGE: DASHBOARD (Blue – Teal Modern + Adjusted Custom Style)
    ============================= */
 
+/* Global variables */
+:root {
+  --blue-primary: #0D6EFD;   /* Biru utama */
+  --teal-accent: #20C997;    /* Teal lembut */
+  --blue-soft: #E9F5FF;      /* Latar lembut kebiruan */
+  --text-dark: #1C1F23;
+  --muted: #6c757d;
+  --border-radius: 12px;
+  --transition: 0.25s ease;
+}
+
+/* NAVBAR — Blue → Teal gradient */
+.navbar-custom {
+  background: linear-gradient(90deg, rgba(13,110,253,0.9), rgba(25,135,84,0.9));
+  padding: 0.9rem 0;
+}
+
+/* HERO — Blue → Teal gradient */
 .page-dashboard .hero {
-  background: linear-gradient(135deg, #5D6D7E, #85929E);
-  color: white;
+  padding: 4rem 0; /* mengikuti style Anda */
   text-align: center;
-  padding: 120px 0;
+  margin-bottom: 1.5rem; /* mengikuti style Anda */
+  background: linear-gradient(120deg, var(--blue-primary) 0%, var(--teal-accent) 100%);
+  color: white;
+  box-shadow: inset 0 -40px 80px rgba(0,0,0,0.08);
 }
 
 .page-dashboard .hero h1 {
-  font-size: 3rem;
+  font-size: 2.7rem;
   font-weight: 700;
   margin-bottom: 15px;
+  text-shadow: 0 3px 10px rgba(0,0,0,0.15);
 }
 
 .page-dashboard .hero p {
-  font-size: 1.25rem;
-  margin-bottom: 30px;
-  color: #ecf0f1;
+  font-size: 1.2rem;
+  margin-bottom: 28px;
+  color: rgba(255,255,255,0.92);
 }
 
+/* FEATURES background */
 .page-dashboard .features {
-  background-color: var(--secondary-color);
-  padding: 80px 0;
+  background: linear-gradient(180deg, rgba(13,110,253,0.03), rgba(32,201,151,0.03));
+  padding: 70px 0;
 }
 
+/* Feature Cards */
+.page-dashboard .feature-card,
 .page-dashboard .features .card {
-  background-color: white;
+  background: white;
   border-radius: var(--border-radius);
-  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
-  transition: var(--transition);
+  box-shadow: 0 6px 18px rgba(0,0,0,0.06);
+  transition: transform var(--transition), box-shadow var(--transition);
+  border: none;
+  text-align: center;
+  padding: 25px 15px;
 }
 
+.page-dashboard .feature-card:hover,
 .page-dashboard .features .card:hover {
-  transform: translateY(-5px);
-  box-shadow: 0 5px 20px rgba(0, 0, 0, 0.12);
+  transform: translateY(-8px);
+  box-shadow: 0 14px 38px rgba(0,0,0,0.12);
 }
 
-.page-dashboard .features img {
-  width: 80px;
+/* Icon inside cards — mengikuti style Anda */
+.page-dashboard .feature-card img {
+  max-width: 84px;
 }
 
+/* Buttons */
 .page-dashboard .features .btn {
   background-color: white;
-  color: var(--primary-color);
+  color: var(--text-dark);
   font-weight: 600;
-  border-radius: var(--border-radius);
+  border-radius: 8px;
   border: none;
-  box-shadow: 0 2px 8px rgba(0,0,0,0.1);
-  transition: var(--transition);
+  box-shadow: 0 4px 14px rgba(0,0,0,0.06);
+  transition: transform var(--transition), box-shadow var(--transition);
+}
+
+.page-dashboard .features .btn.btn-primary {
+  background: var(--blue-primary);
+  color: white;
+}
+
+.page-dashboard .features .btn.btn-success {
+  background: var(--teal-accent);
+  color: white;
 }
 
 .page-dashboard .features .btn:hover {
-  background-color: var(--accent-color);
-  color: white;
+  transform: translateY(-3px);
+  box-shadow: 0 12px 28px rgba(0,0,0,0.12);
 }
 
-.page-dashboard footer {
-  background-color: var(--primary-color);
-  color: white;
-  text-align: center;
-  padding: 15px 0;
-  font-size: 0.9rem;
-}
-
-/* Layout dasar agar footer selalu di bawah */
-.page-dashboard {
-  display: flex;
-  flex-direction: column;
-  min-height: 100vh; /* buat tinggi minimal layar penuh */
-}
-
-/* Bagian konten utama fleksibel, dorong footer ke bawah */
-.page-dashboard main {
-  flex: 1;
-}
-
-/* ==== Card interaktif tanpa tombol ==== */
+/* Card link */
 .page-dashboard .features .card-link {
   display: block;
   text-decoration: none;
   color: inherit;
   background-color: white;
   border-radius: var(--border-radius);
-  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
+  box-shadow: 0 6px 18px rgba(0,0,0,0.06);
   transition: transform 0.3s ease, box-shadow 0.3s ease;
-  padding: 30px 20px;
+  padding: 28px 18px;
 }
 
 .page-dashboard .features .card-link:hover {
-  transform: translateY(-8px);
-  box-shadow: 0 8px 25px rgba(0, 0, 0, 0.15);
+  transform: translateY(-10px);
+  box-shadow: 0 18px 45px rgba(0,0,0,0.15);
 }
 
 .page-dashboard .features .card-link h5 {
-  color: var(--primary-color);
+  color: var(--blue-primary);
 }
 
 .page-dashboard .features .card-link:hover h5 {
-  color: var(--accent-color);
+  color: var(--teal-accent);
+}
+
+/* FOOTER — disesuaikan namun tetap profesional */
+.page-dashboard footer {
+  background: linear-gradient(90deg, var(--blue-primary), var(--teal-accent));
+  color: white;
+  text-align: center;
+  padding: 2rem 0; /* mengikuti style Anda */
+  font-size: 0.95rem;
+}
+
+/* Layout */
+.page-dashboard {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+  background-color: var(--blue-soft);
+  color: var(--text-dark);
+}
+
+.page-dashboard main {
+  flex: 1;
+}
+
+/* Responsive */
+@media (max-width: 767px) {
+  .page-dashboard .hero {
+    padding: 70px 1.25rem;
+  }
+
+  .page-dashboard .hero h1 {
+    font-size: 2rem;
+  }
+
+  .page-dashboard .features {
+    padding: 45px 0;
+  }
 }
