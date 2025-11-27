@@ -2,7 +2,7 @@
 <html lang="id">
 <head>
     <meta charset="UTF-8">
-    <title>Keuangan</title>
+    <title>Keuangan | SPK ANP</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/main.css') }}">
@@ -12,7 +12,10 @@
 <nav class="navbar navbar-expand-lg navbar-dark bg-success mb-4 shadow-sm">
     <div class="container">
         <a class="navbar-brand fw-bold" href="{{ url_for('dashboard') }}">Dashboard</a>
-        <div class="d-flex text-white gap-2"><span>{{ name }}</span><a href="{{ url_for('logout') }}" class="btn btn-danger btn-sm">Logout</a></div>
+        <div class="d-flex text-white gap-2">
+            <span>{{ name }}</span>
+            <a href="{{ url_for('logout') }}" class="btn btn-danger btn-sm">Logout</a>
+        </div>
     </div>
 </nav>
 
@@ -20,74 +23,232 @@
 <div class="container pb-5">
     <div class="d-flex justify-content-between align-items-center mb-4">
         <div>
-            <h2 class="fw-bold text-success">Buku Keuangan</h2>
-            <p class="text-muted">Catat penjualan makanan harian dan keuntungan.</p>
-        </div>
-        <div>
-            <a href="{{ url_for('download_finance_pdf') }}" class="btn btn-danger me-2"><i class="fas fa-file-pdf"></i> PDF</a>
-            <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#modalAddSale"><i class="fas fa-plus"></i> Tambah</button>
+            <h2 class="fw-bold text-success">Manajemen Keuangan UMKM</h2>
+            <p class="text-muted">Kelola catatan penjualan dan simulasi balik modal dengan mudah.</p>
         </div>
     </div>
 
-    {% with messages = get_flashed_messages(with_categories=true) %}
-        {% if messages %}{% for category, message in messages %}<div class="alert alert-{{ category }}">{{ message }}</div>{% endfor %}{% endif %}
-    {% endwith %}
+    <!-- 🧭 Tabs -->
+    <ul class="nav nav-tabs mb-4" id="financeTabs">
+        <li class="nav-item">
+            <button class="nav-link {% if active_tab != 'simulasi' %}active{% endif %}" id="tab-keuangan" data-bs-toggle="tab" data-bs-target="#pane-keuangan">
+                <i class="fas fa-book"></i> Buku Keuangan
+            </button>
+        </li>
+        <li class="nav-item">
+            <button class="nav-link {% if active_tab == 'simulasi' %}active{% endif %}" id="tab-simulasi" data-bs-toggle="tab" data-bs-target="#pane-simulasi">
+                <i class="fas fa-lightbulb"></i> Simulasi Balik Modal
+            </button>
+        </li>
+    </ul>
 
-    <div class="card shadow-sm border-0">
-        <div class="card-body p-0">
-            <div class="table-responsive">
-                <table class="table table-hover align-middle mb-0 text-center">
-                    <thead class="table-primary">
-                        <tr><th>No</th><th>Makanan</th><th>Qty</th><th>Harga</th><th>Keuntungan</th><th>Aksi</th></tr>
-                    </thead>
-                    <tbody>
-                        {% for item in sales %}
-                        <tr>
-                            <td>{{ loop.index }}</td>
-                            <td class="text-start ps-4 fw-bold">{{ item.item_name }}</td>
-                            <td>{{ item.quantity }}</td>
-                            <td>{{ item.price | rupiah }}</td>
-                            <td class="text-success fw-bold">{{ item.profit | rupiah }}</td>
-                            <td><a href="{{ url_for('delete_sale', id=item.id) }}" class="btn btn-danger btn-sm" onclick="return confirm('Hapus?')"><i class="fas fa-trash"></i></a></td>
-                        </tr>
-                        {% else %}
-                        <tr><td colspan="6" class="py-4 text-muted">Belum ada data.</td></tr>
+    <div class="tab-content">
+        <!-- 📘 Tab Buku Keuangan -->
+        <div class="tab-pane fade {% if active_tab != 'simulasi' %}show active{% endif %}" id="pane-keuangan">
+            <div class="d-flex justify-content-between align-items-center mb-3">
+                <div>
+                    <h5 class="fw-bold text-success mb-0">Buku Keuangan</h5>
+                    <small class="text-muted">Catat penjualan harian dan keuntungan dari setiap menu.</small>
+                </div>
+                <div>
+                    <a href="{{ url_for('download_finance_pdf') }}" class="btn btn-danger me-2">
+                        <i class="fas fa-file-pdf"></i> PDF
+                    </a>
+                    <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#modalAddSale">
+                        <i class="fas fa-plus"></i> Tambah
+                    </button>
+                </div>
+            </div>
+
+            {% with messages = get_flashed_messages(with_categories=true) %}
+                {% if messages %}
+                    {% for category, message in messages %}
+                        <div class="alert alert-{{ category }} shadow-sm">{{ message }}</div>
+                    {% endfor %}
+                {% endif %}
+            {% endwith %}
+
+            <div class="card shadow-sm border-0">
+                <div class="card-body p-0">
+                    <div class="table-responsive">
+                        <table class="table table-hover align-middle mb-0 text-center">
+                            <thead class="table-primary">
+                                <tr>
+                                    <th>No</th>
+                                    <th>Makanan</th>
+                                    <th>Qty</th>
+                                    <th>Harga</th>
+                                    <th>Keuntungan</th>
+                                    <th>Aksi</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for item in sales %}
+                                <tr>
+                                    <td>{{ loop.index }}</td>
+                                    <td class="text-start ps-4 fw-bold">{{ item.item_name }}</td>
+                                    <td>{{ item.quantity }}</td>
+                                    <td>{{ item.price | rupiah }}</td>
+                                    <td class="text-success fw-bold">{{ item.profit | rupiah }}</td>
+                                    <td>
+                                        <a href="{{ url_for('delete_sale', id=item.id) }}" 
+                                           class="btn btn-danger btn-sm" 
+                                           onclick="return confirm('Hapus data ini?')">
+                                           <i class="fas fa-trash"></i>
+                                        </a>
+                                    </td>
+                                </tr>
+                                {% else %}
+                                <tr><td colspan="6" class="py-4 text-muted">Belum ada data.</td></tr>
+                                {% endfor %}
+                            </tbody>
+                            <tfoot class="table-light fw-bold border-top">
+                                <tr>
+                                    <td colspan="4" class="text-end pe-3">Total Keuntungan:</td>
+                                    <td class="text-success">{{ total_profit | rupiah }}</td>
+                                    <td></td>
+                                </tr>
+                            </tfoot>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 💡 Tab Simulasi Balik Modal -->
+        <div class="tab-pane fade {% if active_tab == 'simulasi' %}show active{% endif %}" id="pane-simulasi">
+            <div class="card shadow-sm border-0">
+                <div class="card-header text-white fw-bold"
+                     style="background: linear-gradient(90deg, #0D6EFD, #20C997);">
+                    💡 Simulasi Balik Modal UMKM
+                </div>
+                <div class="card-body">
+                    <form action="{{ url_for('finance_simulation') }}" method="POST">
+                        <div class="row mb-3">
+                            <div class="col-md-4">
+                                <label class="form-label fw-semibold">Biaya Sewa Bulanan (Rp)</label>
+                                <input type="number" step="0.01" name="biaya_sewa" class="form-control" 
+                                       placeholder="cth: 2000000"
+                                       value="{{ form_data.biaya_sewa if form_data else '' }}" required>
+                            </div>
+                        </div>
+
+                        <h6 class="fw-bold text-primary mb-2">📋 Jenis Makanan (maks. 5)</h6>
+
+                        {% for i in range(1,6) %}
+                        {% set data = form_data.menu[i-1] if form_data and form_data.menu|length >= i else None %}
+                        <div class="row g-2 mb-2">
+                            <div class="col-md-4">
+                                <input type="text" name="nama_{{ i }}" class="form-control" 
+                                       placeholder="Nama makanan {{ i }}" 
+                                       value="{{ data.nama if data else '' }}">
+                            </div>
+                            <div class="col-md-4">
+                                <input type="number" step="0.01" name="harga_{{ i }}" class="form-control" 
+                                       placeholder="Harga jual (Rp)"
+                                       value="{{ data.harga if data else '' }}">
+                            </div>
+                            <div class="col-md-4">
+                                <input type="number" step="0.01" name="modal_{{ i }}" class="form-control" 
+                                       placeholder="Modal per porsi (Rp)"
+                                       value="{{ data.modal if data else '' }}">
+                            </div>
+                        </div>
                         {% endfor %}
-                    </tbody>
-                    <tfoot class="table-light fw-bold border-top">
-                        <tr><td colspan="4" class="text-end pe-3">Total Keuntungan:</td><td class="text-success">{{ total_profit | rupiah }}</td><td></td></tr>
-                    </tfoot>
-                </table>
+
+                        <div class="text-end mt-3">
+                            <button type="submit" class="btn btn-success px-4 me-2">
+                                <i class="fas fa-calculator me-1"></i> Hitung Simulasi
+                            </button>
+                            <a href="{{ url_for('finance_clear') }}" class="btn btn-outline-secondary px-4">
+                                <i class="fas fa-eraser me-1"></i> Clear Form
+                            </a>
+                        </div>
+                    </form>
+
+                    <!-- 📊 Hasil Simulasi -->
+                    {% if hasil_simulasi %}
+                    <hr class="my-4">
+                    <h5 class="fw-bold text-success mb-3">📊 Hasil Simulasi Balik Modal</h5>
+                    <div class="table-responsive">
+                        <table class="table table-bordered text-center">
+                            <thead class="table-light">
+                                <tr>
+                                    <th>Nama Makanan</th>
+                                    <th>Harga Jual</th>
+                                    <th>Modal</th>
+                                    <th>Untung per Porsi</th>
+                                    <th>Rekomendasi</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for item in hasil_simulasi %}
+                                <tr>
+                                    <td class="fw-semibold">{{ item.nama }}</td>
+                                    <td>{{ item.harga | rupiah }}</td>
+                                    <td>{{ item.modal | rupiah }}</td>
+                                    <td class="text-success">{{ item.untung | rupiah }}</td>
+                                    <td>{{ item.rekomendasi }}</td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <div class="alert alert-info mt-3">
+                        <i class="fas fa-chart-line"></i> {{ summary }}
+                    </div>
+                    {% endif %}
+                </div>
             </div>
         </div>
     </div>
 </div>
 
+<!-- Modal Tambah Penjualan -->
 <div class="modal fade" id="modalAddSale" tabindex="-1">
     <div class="modal-dialog">
         <div class="modal-content">
-            <div class="modal-header bg-primary text-white"><h5 class="modal-title">Tambah Data</h5><button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button></div>
+            <div class="modal-header bg-primary text-white">
+                <h5 class="modal-title">Tambah Data</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
             <form action="{{ url_for('finance') }}" method="POST">
                 <div class="modal-body">
-                    <div class="mb-3"><label>Nama Makanan</label><input type="text" name="item_name" class="form-control" required></div>
-                    <div class="row">
-                        <div class="col-md-6 mb-3"><label>Qty</label><input type="number" name="quantity" class="form-control" required></div>
-                        <div class="col-md-6 mb-3"><label>Harga</label><input type="number" name="price" class="form-control" placeholder="Tanpa titik" required></div>
+                    <div class="mb-3">
+                        <label>Nama Makanan</label>
+                        <input type="text" name="item_name" class="form-control" required>
                     </div>
-                    <div class="mb-3"><label>Keuntungan</label><input type="number" name="profit" class="form-control" placeholder="Tanpa titik" required></div>
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label>Qty</label>
+                            <input type="number" name="quantity" class="form-control" required>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label>Harga</label>
+                            <input type="number" name="price" class="form-control" placeholder="Tanpa titik" required>
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <label>Keuntungan</label>
+                        <input type="number" name="profit" class="form-control" placeholder="Tanpa titik" required>
+                    </div>
                 </div>
-                <div class="modal-footer"><button type="submit" class="btn btn-primary">Simpan</button></div>
+                <div class="modal-footer">
+                    <button type="submit" class="btn btn-primary">Simpan</button>
+                </div>
             </form>
         </div>
     </div>
 </div>
 </main>
 
-<footer class="mt-5">
+<footer>
   <div class="container">
-    <p>© 2025 SPK ANP | Sistem Pendukung Keputusan Analytic Network Process</p>
+    <p class="mb-0">© 2025 SPK ANP | Sistem Pendukung Keputusan Analytic Network Process</p>
   </div>
 </footer>
+
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 </body>
 </html>

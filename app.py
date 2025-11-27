@@ -254,6 +254,97 @@ def download_finance_pdf():
     response.headers['Content-Disposition'] = 'attachment; filename=Laporan_Keuangan.pdf'
     return response
 
+@app.route("/finance/simulation", methods=["POST"])
+def finance_simulation():
+    if "user_id" not in session:
+        return redirect(url_for("login"))
+
+    biaya_sewa = float(request.form.get("biaya_sewa", 0))
+    hasil_list = []
+    detail_porsi = []
+    total_profit = 0
+    total_items = 0
+
+
+    form_data = {"biaya_sewa": biaya_sewa, "menu": []}
+
+    for i in range(1, 6):
+        nama = request.form.get(f"nama_{i}")
+        harga = request.form.get(f"harga_{i}")
+        modal = request.form.get(f"modal_{i}")
+
+        if nama or harga or modal:
+            form_data["menu"].append({
+                "nama": nama or "",
+                "harga": harga or "",
+                "modal": modal or "",
+            })
+
+        if nama and harga and modal:
+            harga = float(harga)
+            modal = float(modal)
+            untung = harga - modal
+            if untung <= 0:
+                rekomendasi = f"Harga terlalu rendah! Naikkan minimal ke Rp {modal + 1000:,.0f}"
+                porsi_perlu = 0
+            else:
+                porsi_perlu = biaya_sewa / untung
+                rekomendasi = f"Perlu jual ±{porsi_perlu:.0f} porsi untuk tutup sewa."
+
+            hasil_list.append({
+                "nama": nama,
+                "harga": harga,
+                "modal": modal,
+                "untung": untung,
+                "rekomendasi": rekomendasi,
+                "porsi_perlu": porsi_perlu
+            })
+            if porsi_perlu > 0:
+                detail_porsi.append(f"{int(porsi_perlu):,} porsi {nama}")
+            total_profit += untung
+            total_items += 1
+
+ 
+    if detail_porsi:
+        summary = f"Untuk menutup biaya sewa Rp {biaya_sewa:,.0f} harus menjual " + \
+                  " dan ".join(detail_porsi) + "."
+    else:
+        summary = "Tidak ada data makanan valid untuk simulasi."
+
+    return render_template(
+        "finance.html",
+        name=session["user_name"],
+        sales=Sale.query.filter_by(user_id=session["user_id"]).all(),
+        total_profit=sum(s.profit for s in Sale.query.filter_by(user_id=session["user_id"]).all()),
+        active_tab="simulasi",
+        hasil_simulasi=hasil_list,
+        summary=summary,
+        form_data=form_data,  
+    )
+    
+@app.route("/finance/clear", methods=["GET"])
+def finance_clear():
+    """Reset form simulasi balik modal"""
+    if "user_id" not in session:
+        return redirect(url_for("login"))
+
+    # Hapus data form dari session jika ada
+    if "form_data" in session:
+        session.pop("form_data")
+
+    # Render ulang halaman simulasi dalam keadaan kosong
+    return render_template(
+        "finance.html",
+        name=session["user_name"],
+        sales=Sale.query.filter_by(user_id=session["user_id"]).all(),
+        total_profit=sum(s.profit for s in Sale.query.filter_by(user_id=session["user_id"]).all()),
+        active_tab="simulasi",
+        hasil_simulasi=None,
+        summary=None,
+        form_data=None
+    )
+
+
 if __name__ == "__main__":
     with app.app_context(): db.create_all()
     app.run(debug=True)
