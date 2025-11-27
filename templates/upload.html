@@ -7,40 +7,33 @@
 
     <!-- Bootstrap -->
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
-    <!-- Google Fonts -->
-    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600;700&display=swap" rel="stylesheet">
-    
-    <style>
-      body { font-family: 'Poppins', sans-serif; background-color: #f8f9fa; }
-      .navbar { box-shadow: 0 2px 4px rgba(0,0,0,.1); }
-      .card { border: none; box-shadow: 0 4px 6px rgba(0,0,0,.05); border-radius: 10px; }
-      .btn-primary { background-color: #5D6D7E; border-color: #5D6D7E; }
-      .btn-primary:hover { background-color: #34495E; border-color: #34495E; }
-    </style>
+
+    <!-- Gunakan CSS utama agar warna sama seperti landing page -->
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/main.css') }}">
   </head>
 
   <body class="page-upload">
 
     <!-- Navbar -->
-    <nav class="navbar navbar-expand-lg navbar-dark bg-dark">
-    <div class="container">
-        <a class="navbar-brand" href="#">SPK System</a>
-        <div class="d-flex align-items-center text-white gap-3">
-            <span>Halo, {{ name }}</span>
-            {% if picture %} <img src="{{ picture }}" class="rounded-circle" width="35"> {% endif %}
-            <a href="{{ url_for('logout') }}" class="btn btn-sm btn-danger">Logout</a>
+    <nav class="navbar navbar-expand-lg">
+      <div class="container">
+        <a class="navbar-brand fw-bold text-white" href="/">SPK ANP</a>
+        <div class="d-flex align-items-center">
+          <span class="text-white me-3">Halo, {{ name }}</span>
+          {% if picture %}
+            <img src="{{ picture }}" class="rounded-circle" width="35">
+          {% endif %}
+          <a href="{{ url_for('logout') }}" class="btn btn-outline-light btn-sm ms-2">Logout</a>
         </div>
-        </div>
+      </div>
     </nav>
 
     <!-- Main Content -->
-    <div class="container py-5">
-      
-      <!-- Judul & Pesan Error -->
+    <main class="container py-5">
       <div class="text-center mb-5">
         <h1 class="fw-bold text-dark">Analisis Pemilihan Lokasi UMKM</h1>
-        <p class="text-muted">Unggah data alternatif dalam format Excel/CSV untuk mendapatkan rekomendasi terbaik.</p>
-        
+        <p class="text-muted">Unggah file Excel atau CSV berisi data alternatif untuk analisis otomatis menggunakan metode ANP.</p>
+
         {% with messages = get_flashed_messages() %}
           {% if messages %}
             {% for message in messages %}
@@ -53,7 +46,7 @@
       <!-- Form Upload -->
       <div class="row justify-content-center">
         <div class="col-md-6">
-          <div class="card p-4">
+          <div class="card p-4 shadow-sm border-0">
             <form action="/upload" method="POST" enctype="multipart/form-data">
               <div class="mb-3">
                 <label for="file" class="form-label fw-semibold">Pilih File Data (.xlsx / .csv)</label>
@@ -70,63 +63,69 @@
       {% if uploaded %}
       <hr class="my-5">
 
-      <!-- Hasil Analisis -->
       <div class="row">
-        
-        <!-- 1. Ringkasan & Grafik -->
+        <!-- 📊 Grafik & Tabel Peringkat -->
         <div class="col-lg-8 mb-4">
-          <div class="card h-100">
-            <div class="card-header bg-white fw-bold">📊 Grafik Peringkat Alternatif</div>
-            <div class="card-body text-center">
+          <div class="card shadow-sm border-0">
+            <div class="card-header bg-white fw-bold d-flex justify-content-between align-items-center">
+              <span>📊 Grafik & Tabel Peringkat Alternatif</span>
+              <div>
+                <a href="{{ url_for('download_spk_pdf') }}" class="btn btn-outline-danger btn-sm me-2">
+                  <i class="fas fa-file-pdf"></i> Unduh PDF
+                </a>
+                <span class="badge bg-primary text-white">ANP Analysis</span>
+              </div>
+            </div>
+
+            <div class="card-body">
               {% if chart %}
-                <img src="{{ chart }}" alt="Grafik ANP" class="img-fluid rounded">
+                <div class="text-center mb-4">
+                  <img src="{{ chart }}" alt="Grafik ANP" class="img-fluid rounded shadow-sm" style="max-height: 360px; object-fit: contain;">
+                </div>
               {% else %}
-                <p class="text-muted">Grafik tidak tersedia.</p>
+                <p class="text-muted text-center">Grafik tidak tersedia.</p>
               {% endif %}
-              
-              <div class="alert alert-success mt-4 text-start">
-                <h5 class="alert-heading fw-bold">💡 Kesimpulan:</h5>
+
+              <div class="alert alert-success mt-4 text-start shadow-sm">
+                <h5 class="fw-bold mb-2">💡 Kesimpulan:</h5>
                 <p class="mb-0">{{ info.summary }}</p>
               </div>
             </div>
           </div>
         </div>
 
-        <!-- 2. Tabel Ranking -->
+        <!-- 🏆 Peringkat Singkat -->
         <div class="col-lg-4 mb-4">
-          <div class="card h-100">
-            <div class="card-header bg-white fw-bold">🏆 Peringkat Akhir</div>
+          <div class="card shadow-sm border-0">
+            <div class="card-header bg-white fw-bold">🏆 Hasil Peringkat Alternatif</div>
             <div class="card-body p-0">
-              <div class="table-responsive">
-                <table class="table table-hover table-striped mb-0">
-                  <thead class="table-light">
-                    <tr>
-                      <th>#</th>
-                      <th>Alternatif</th>
-                      <th>Skor</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {% for r in results %}
-                    <tr class="{{ 'table-success fw-bold' if loop.index == 1 else '' }}">
-                      <td>{{ loop.index }}</td>
-                      <td>{{ r.Alternatif }}</td>
-                      <td>{{ "%.4f"|format(r.Skor_Global) }}</td>
-                    </tr>
-                    {% endfor %}
-                  </tbody>
-                </table>
-              </div>
+              <table class="table table-hover table-striped mb-0 text-center">
+                <thead class="table-light">
+                  <tr>
+                    <th>#</th>
+                    <th>Alternatif</th>
+                    <th>Skor</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {% for r in results %}
+                  <tr class="{{ 'table-success fw-bold' if loop.index == 1 else '' }}">
+                    <td>{{ loop.index }}</td>
+                    <td>{{ r.Alternatif }}</td>
+                    <td>{{ "%.4f"|format(r.Skor_Global) }}</td>
+                  </tr>
+                  {% endfor %}
+                </tbody>
+              </table>
             </div>
           </div>
         </div>
-
       </div>
 
-      <!-- 3. Detail Data & Bobot -->
+      <!-- 📄 Detail Data -->
       <div class="row mt-4">
         <div class="col-md-12">
-          <div class="card">
+          <div class="card shadow-sm border-0">
             <div class="card-header bg-white fw-bold d-flex justify-content-between align-items-center">
               <span>📂 Detail Data & Perhitungan</span>
               <button class="btn btn-sm btn-outline-secondary" type="button" data-bs-toggle="collapse" data-bs-target="#detailSection">
@@ -135,7 +134,6 @@
             </div>
             <div class="collapse show" id="detailSection">
               <div class="card-body">
-                
                 <h6 class="fw-bold text-primary">Data Awal (Dari File Anda)</h6>
                 <div class="table-responsive mb-4" style="max-height: 300px;">
                   {% for table in tables %}
@@ -156,16 +154,13 @@
                     </table>
                     <small class="text-muted">Konsistensi (CR): {{ info.CR }} (Valid)</small>
                   </div>
-                  
                   <div class="col-md-6">
-                    <!-- Tempat untuk info tambahan/limit matrix jika mau ditampilkan -->
-                     {% if limitmatrix_html %}
-                     <h6 class="fw-bold text-primary">Limit Matrix (Sample)</h6>
-                     <div class="alert alert-secondary py-2"><small>Perhitungan konvergensi matriks telah diterapkan.</small></div>
-                     {% endif %}
+                    {% if limitmatrix_html %}
+                    <h6 class="fw-bold text-primary">Limit Matrix (Sample)</h6>
+                    <div class="alert alert-secondary py-2"><small>Perhitungan konvergensi matriks telah diterapkan.</small></div>
+                    {% endif %}
                   </div>
                 </div>
-
               </div>
             </div>
           </div>
@@ -173,11 +168,11 @@
       </div>
 
       {% endif %}
+    </main>
 
-    </div>
-
-    <footer class="text-center py-4 mt-5 text-muted border-top">
-      <small>&copy; 2025 Sistem Pendukung Keputusan UMKM (ANP Method)</small>
+    <!-- Footer -->
+    <footer>
+      <p>© 2025 SPK ANP | Sistem Pendukung Keputusan Analytic Network Process</p>
     </footer>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>

@@ -4,6 +4,7 @@ import pandas as pd
 import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
+import re
 
 # ======================================================
 #  KONFIGURASI & FOLDER
@@ -13,56 +14,65 @@ CHART_DIR = os.path.join(BASE_DIR, "static", "charts")
 os.makedirs(CHART_DIR, exist_ok=True)
 
 # ======================================================
-# 1️⃣ FUNGSI KONVERSI (DENGAN DEBUG PRINT)
+# 1. HELPER: KONVERSI SATUAN AGAR ADIL
 # ======================================================
+def extract_number_and_convert(value_str):
+    v = str(value_str).lower().replace(",", "").replace(".", "")
+    numbers = [float(s) for s in re.findall(r'\d+', v)]
+    if not numbers: return 0
+    base_val = sum(numbers) / len(numbers)
+    
+    multiplier = 1
+    if "juta" in v: multiplier = 1000000
+    elif "ribu" in v or "rb" in v: multiplier = 1000
+    elif "ekor" in v: multiplier = 4        
+    elif "biji" in v or "tusuk" in v: multiplier = 0.2  
+    
+    return base_val * multiplier
+
 def translate_value(column_name, value):
     v_orig = str(value).strip()
     v = v_orig.lower()
     col = column_name.lower()
     
-    score = 1 # Default skor jika tidak dikenali
-    
-    # --- LOGIKA C1: SEWA (COST) ---
+    num_val = extract_number_and_convert(v_orig) 
+    score = 1 
+
     if "c1" in col or "sewa" in col:
-        if any(x in v for x in ["500", "600", "800"]): score = 5
-        elif "1" in v and "juta" in v: score = 4
-        elif "1.5" in v or "1,5" in v: score = 4
-        elif "1.6" in v or "1,6" in v: score = 3
-        elif "2" in v and "juta" in v: score = 3
-        elif "3.5" in v or "3,5" in v: score = 2
-        elif "6" in v or "7" in v: score = 1
-        elif "2" in v: score = 3 # Fallback angka '2'
+        if num_val == 0: score = 1
+        elif num_val <= 900000: score = 5
+        elif num_val <= 1500000: score = 4
+        elif num_val <= 2500000: score = 3
+        elif num_val <= 4500000: score = 2
         else: score = 1
 
-    # --- LOGIKA C2: PENJUALAN (BENEFIT) ---
     elif "c2" in col or "jual" in col:
-        if "10-15" in v: score = 3        # <--- KHUSUS A1
-        elif "100" in v or "500" in v: score = 5
-        elif "50" in v: score = 4
-        elif "30" in v or "40" in v: score = 3
-        elif "20" in v: score = 2
-        elif "15" in v: score = 1
-        elif "10" in v or "5" in v: score = 1
+        if num_val >= 100: score = 5
+        elif num_val >= 60: score = 4
+        elif num_val >= 30: score = 3
+        elif num_val >= 15: score = 2
         else: score = 1
 
-    # --- LOGIKA C3: BAHAN (BENEFIT) ---
     elif "c3" in col or "bahan" in col:
-        if "sangat mudah" in v: score = 5
-        elif "mudah" in v: score = 5
+        if "sangat" in v: score = 5
         elif "cukup" in v: score = 4
+        elif "agak sulit" in v: score = 2
         elif "sulit" in v: score = 1
         else: score = 5
 
-    # --- LOGIKA C4: FASILITAS (BENEFIT) ---
     elif "c4" in col or "fasil" in col:
-        items = v.count(",") + 1
-        if "tidak ada" in v or v == "-" or v == "": score = 1
-        elif items >= 3: score = 4
-        elif items == 2: score = 3
-        elif "lengkap" in v: score = 5
-        else: score = 3
+        if "tidak ada" in v or v == "-" or v == "": 
+            item_count = 0
+        else:
+            item_count = v.count(",") + 1
+        
+        if "wifi" in v: score = 5
+        elif item_count >= 4: score = 5
+        elif item_count == 3: score = 4
+        elif item_count == 2: score = 3
+        elif item_count == 1: score = 2
+        else: score = 1
 
-    # --- LOGIKA C5: PERSAINGAN (COST) ---
     elif "c5" in col or "saing" in col:
         if "belum ada" in v: score = 5
         elif "tidak" in v: score = 4
@@ -71,17 +81,12 @@ def translate_value(column_name, value):
         elif "ketat" in v: score = 1
         else: score = 2
 
-    # --- CEK APAKAH INPUT SUDAH ANGKA MENTAH (1-5) ---
-    # Jika logika di atas gagal tapi inputnya adalah angka 1-5, pakai angka itu.
     try:
-        val_float = float(value)
-        if 1 <= val_float <= 5:
-            score = val_float
+        if 1 <= float(value) <= 5:
+            if float(value) <= 5: score = float(value)
     except:
         pass
 
-    # PRINT DEBUG KE TERMINAL (Supaya kelihatan salahnya dimana)
-    print(f"   [DEBUG] Col: {column_name[:10]}.. | Input: '{v_orig}' -> Skor: {score}")
     return score
 
 # ======================================================

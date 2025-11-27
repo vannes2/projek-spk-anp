@@ -22,3 +22,17 @@ footer a:hover {
   color: #ffffff;
   opacity: 0.9;
 }
+
+html, body {
+  height: 100%;
+}
+
+body {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+}
+
+main {
+  flex: 1;
+}

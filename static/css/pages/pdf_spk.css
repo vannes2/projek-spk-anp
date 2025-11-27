@@ -1,0 +1,58 @@
+/* ===============================
+   PDF SPK ANP — Style khusus laporan
+   =============================== */
+
+body.pdf-report {
+  font-family: "Poppins", sans-serif;
+  padding: 30px;
+  font-size: 13px;
+  color: #222;
+}
+
+.pdf-report h2 {
+  text-align: center;
+  color: #0D6EFD;
+  margin-bottom: 5px;
+}
+
+.pdf-report h3 {
+  margin-top: 30px;
+  color: #0D6EFD;
+}
+
+.pdf-report p {
+  text-align: center;
+  color: #333;
+}
+
+.pdf-report table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 15px;
+}
+
+.pdf-report th, 
+.pdf-report td {
+  border: 1px solid #ccc;
+  padding: 8px;
+  text-align: center;
+}
+
+.pdf-report th {
+  background: linear-gradient(90deg, #0D6EFD, #20C997);
+}
+
+.pdf-report tr:nth-child(even) {
+  background-color: #f9f9f9;
+}
+
+.pdf-report .table-section {
+  margin-bottom: 40px;
+}
+
+/* Paksa semua teks di dalam tabel menjadi hitam */
+.pdf-report table,
+.pdf-report th,
+.pdf-report td {
+  color: #000 !important;  /* <-- inilah kuncinya */
+}

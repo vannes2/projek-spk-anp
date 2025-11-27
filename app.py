@@ -200,21 +200,47 @@ def delete_sale(id):
 # --- PDF DOWNLOAD ROUTES ---
 @app.route("/download/spk")
 def download_spk_pdf():
-    if "user_id" not in session: return redirect(url_for("login"))
+    if "user_id" not in session:
+        return redirect(url_for("login"))
+
     filepath = session.get('uploaded_filepath')
     if not filepath or not os.path.exists(filepath):
-        flash("Upload data dulu.", "warning"); return redirect(url_for("upload_file"))
+        flash("Upload data dulu.", "warning")
+        return redirect(url_for("upload_file"))
+
     try:
         df = pd.read_csv(filepath, sep=";", engine="python") if filepath.endswith(".csv") else pd.read_excel(filepath)
-        if filepath.endswith(".csv") and len(df.columns) == 1: df = pd.read_csv(filepath, sep=",", engine="python")
+        if filepath.endswith(".csv") and len(df.columns) == 1:
+            df = pd.read_csv(filepath, sep=",", engine="python")
+
         result_data = run_anp_analysis(df)
-        html = render_template("pdf_spk.html", name=session["user_name"], results=result_data["ranking"], info=result_data)
-        pdf = create_pdf(html)
+
+        html = render_template(
+            "pdf_spk.html",
+            name=session["user_name"],
+            results=result_data["ranking"],
+            info=result_data,
+            table_data=df.to_html(classes="table table-bordered", index=False)
+        )
+
+        # === Tambahkan CSS dari /static/css/pages/pdf_spk.css ===
+        css_path = os.path.join(app.static_folder, "css", "pages", "pdf_spk.css")
+        with open(css_path, "r", encoding="utf-8") as css_file:
+            css_content = css_file.read()
+
+        # Satukan HTML dan CSS
+        full_html = f"<style>{css_content}</style>{html}"
+
+        pdf = create_pdf(full_html)
         response = make_response(pdf)
         response.headers['Content-Type'] = 'application/pdf'
-        response.headers['Content-Disposition'] = 'attachment; filename=Laporan_SPK.pdf'
+        response.headers['Content-Disposition'] = 'attachment; filename=Laporan_SPK_Analisis.pdf'
         return response
-    except Exception as e: flash(f"Gagal PDF: {e}", "danger"); return redirect(url_for("upload_file"))
+
+    except Exception as e:
+        flash(f"Gagal membuat PDF: {e}", "danger")
+        return redirect(url_for("upload_file"))
+
 
 @app.route("/download/finance")
 def download_finance_pdf():

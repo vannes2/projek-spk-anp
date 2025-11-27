@@ -1,9 +1,55 @@
 <!DOCTYPE html>
-<html>
-<head><style>body{font-family:sans-serif;padding:20px}h2{text-align:center}table{width:100%;border-collapse:collapse;margin-top:20px}th,td{border:1px solid #ddd;padding:8px;text-align:center}th{background-color:#f2f2f2}</style></head>
-<body>
-    <h2>Laporan Analisis Lokasi (SPK)</h2>
-    <p>User: {{ name }}</p>
-    <table><thead><tr><th>Rank</th><th>Lokasi</th><th>Skor</th></tr></thead><tbody>{% for row in results %}<tr><td>{{ loop.index }}</td><td>{{ row.Alternatif }}</td><td>{{ row.Skor_Global }}</td></tr>{% endfor %}</tbody></table>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <title>Laporan SPK ANP</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/pdf_spk.css') }}">
+</head>
+
+<body class="pdf-report">
+  <h2>Laporan Analisis Lokasi (SPK ANP)</h2>
+  <p><b>User:</b> {{ name }}</p>
+
+  <!-- Tabel Peringkat -->
+  <div class="table-section">
+    <h3>🏆 Hasil Peringkat Alternatif</h3>
+    <table>
+      <thead>
+        <tr><th>Rank</th><th>Alternatif</th><th>Skor Global</th></tr>
+      </thead>
+      <tbody>
+        {% for row in results %}
+        <tr>
+          <td>{{ loop.index }}</td>
+          <td>{{ row.Alternatif }}</td>
+          <td>{{ "%.4f"|format(row.Skor_Global) }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+  <!-- Data Awal -->
+  <div class="table-section">
+    <h3>📂 Data Awal (Dari File Upload)</h3>
+    {{ table_data | safe }}
+  </div>
+
+  <!-- Bobot Kriteria -->
+  <div class="table-section">
+    <h3>⚙️ Bobot Kriteria (ANP)</h3>
+    <table>
+      <thead><tr><th>Kriteria</th><th>Bobot Akhir</th></tr></thead>
+      <tbody>
+        {% for key, value in info.weights.items() %}
+        <tr>
+          <td>{{ key }}</td>
+          <td>{{ "%.4f"|format(value) }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    <p style="margin-top:5px;"><i>Konsistensi (CR): {{ info.CR }}</i></p>
+  </div>
 </body>
 </html>
