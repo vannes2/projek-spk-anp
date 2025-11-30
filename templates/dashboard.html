@@ -62,36 +62,22 @@
       </div>
 
       <!-- RINGKASAN HASIL TERAKHIR -->
-      <div class="col-lg-4 col-md-12">
-        <div class="card h-100 shadow-sm p-3">
-          <div class="card-body">
-            <h5 class="card-title">Ringkasan Terakhir</h5>
-            <p class="text-muted small mb-2">Hasil analisis terbaru (jika tersedia) akan muncul di sini.</p>
+                <div class="col-lg-4 col-md-6">
+            <a href="{{ url_for('history') }}" class="text-decoration-none text-reset">
+              <div class="card h-100 shadow-sm text-center p-4 feature-card position-relative">
+                <img src="https://cdn-icons-png.flaticon.com/512/484/484613.png" alt="history" width="80">
+                <h5 class="mt-3 fw-semibold text-primary">Riwayat Analisis</h5>
+                <p class="text-muted small mb-0">Lihat hasil analisis lokasi usaha Anda sebelumnya yang tersimpan otomatis.</p>
 
-            {% if recent_results %}
-              <ul class="list-group list-group-flush">
-                {% for r in recent_results[:5] %}
-                  <li class="list-group-item d-flex justify-content-between align-items-center">
-                    <div>
-                      <strong>{{ r.Nama }}</strong><br>
-                      <small class="text-muted">Skor: {{ r.Skor_Global }}</small>
-                    </div>
-
-                    {% if r.video_url %}
-                      <a href="{{ r.video_url }}" target="_blank" class="btn btn-outline-primary btn-sm">
-                        Preview
-                      </a>
-                    {% endif %}
-                  </li>
-                {% endfor %}
-              </ul>
-            {% else %}
-              <div class="text-center py-4 text-muted">
-                Belum ada hasil analisis. Silakan upload data.
+                {% if history_count and history_count > 0 %}
+                <span class="position-absolute top-0 end-0 translate-middle badge rounded-pill bg-danger">
+                  {{ history_count }}
+                </span>
+                {% endif %}
               </div>
-            {% endif %}
-
+            </a>
           </div>
+
         </div>
       </div>
 

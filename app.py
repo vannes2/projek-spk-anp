@@ -4,6 +4,7 @@ from flask_dance.contrib.google import make_google_blueprint, google
 from werkzeug.utils import secure_filename
 from werkzeug.security import generate_password_hash, check_password_hash
 import pandas as pd
+import json
 import os
 import re
 import io
@@ -49,6 +50,15 @@ class Sale(db.Model):
     quantity = db.Column(db.Integer, nullable=False)
     price = db.Column(db.Float, nullable=False)
     profit = db.Column(db.Float, nullable=False)
+
+class AnalysisHistory(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    filename = db.Column(db.String(200))
+    best_location = db.Column(db.String(100))
+    best_score = db.Column(db.Float)
+    detail_json = db.Column(db.Text)
+    date_created = db.Column(db.DateTime, default=db.func.current_timestamp())
 
 # === FILTER FORMAT RUPIAH ===
 @app.template_filter('rupiah')
@@ -141,32 +151,157 @@ def dashboard():
 # --- SPK ROUTE ---
 @app.route("/upload", methods=["GET", "POST"])
 def upload_file():
-    if "user_id" not in session: return redirect(url_for("login"))
+    """Upload file Excel/CSV untuk analisis ANP & simpan hasil lengkap ke riwayat"""
+    if "user_id" not in session:
+        return redirect(url_for("login"))
+
     if request.method == "POST":
         file = request.files.get("file")
-        if file and allowed_file(file.filename):
-            filename = secure_filename(file.filename)
-            filepath = os.path.join(app.config["UPLOAD_FOLDER"], filename)
-            file.save(filepath)
-            session['uploaded_filepath'] = filepath 
+
+        # 🔒 Validasi file
+        if not file or not allowed_file(file.filename):
+            flash("⚠️ Harap unggah file dengan format CSV atau Excel.", "warning")
+            return redirect(request.url)
+
+        filename = secure_filename(file.filename)
+        filepath = os.path.join(app.config["UPLOAD_FOLDER"], filename)
+        file.save(filepath)
+        session["uploaded_filepath"] = filepath
+
+        try:
+            # 📘 Baca file (CSV/Excel)
+            if filename.endswith(".csv"):
+                df = pd.read_csv(filepath, sep=";", engine="python")
+                if len(df.columns) == 1:  # fallback: mungkin koma bukan titik koma
+                    df = pd.read_csv(filepath, sep=",", engine="python")
+            else:
+                df = pd.read_excel(filepath)
+
+            # 🎬 Deteksi kolom video/link (opsional)
+            video_map = {}
+            col_name = df.columns[0]
+            col_video = next((c for c in df.columns if "video" in c.lower() or "link" in c.lower()), None)
+            if col_video:
+                for _, row in df.iterrows():
+                    video_map[str(row[col_name])] = convert_youtube_embed(str(row[col_video]))
+
+            # ⚙️ Jalankan analisis ANP
+            result_data = run_anp_analysis(df)
+
+            # 💡 Tambahkan hasil tabel ke JSON agar bisa ditampilkan ulang di riwayat
+            result_data["table_html"] = df.to_html(classes="table table-bordered", index=False)
+
+            # 💡 Tambahkan video ke setiap alternatif jika tersedia
+            for item in result_data.get("ranking", []):
+                item["video_url"] = video_map.get(item.get("Alternatif"))
+
+            # 🧠 Debug: tampilkan data yang akan disimpan
+            print("DEBUG RESULT DATA:", result_data.keys())
+            print("DEBUG DETAIL_JSON PREVIEW:", json.dumps(result_data)[:300])
+
+            # 💾 Simpan hasil terbaik & detail lengkap ke database
             try:
-                df = pd.read_csv(filepath, sep=";", engine="python") if filename.endswith(".csv") else pd.read_excel(filepath)
-                if filename.endswith(".csv") and len(df.columns) == 1: df = pd.read_csv(filepath, sep=",", engine="python")
-                
-                video_map = {}
-                col_name = df.columns[0]
-                col_video = next((c for c in df.columns if "video" in c.lower() or "link" in c.lower()), None)
-                if col_video:
-                    for idx, row in df.iterrows():
-                        video_map[str(row[col_name])] = convert_youtube_embed(str(row[col_video]))
+                best_result = max(result_data["ranking"], key=lambda x: x["Skor_Global"])
+                new_history = AnalysisHistory(
+                    user_id=session["user_id"],
+                    filename=filename,
+                    best_location=best_result["Alternatif"],
+                    best_score=best_result["Skor_Global"],
+                    detail_json=json.dumps(result_data)  # ✅ simpan seluruh hasil analisis
+                )
+                db.session.add(new_history)
+                db.session.commit()
+                print(f"✅ Riwayat berhasil disimpan untuk file: {filename}")
+            except Exception as e:
+                print(f"⚠️ Gagal menyimpan riwayat ke database: {e}")
 
-                result_data = run_anp_analysis(df)
-                for item in result_data["ranking"]:
-                    item["video_url"] = video_map.get(item["Alternatif"])
+            # ✅ Tampilkan hasil di halaman
+            return render_template(
+                "upload.html",
+                uploaded=True,
+                tables=[result_data["table_html"]],
+                chart=result_data.get("chart"),
+                results=result_data.get("ranking", []),
+                info=result_data,
+                name=session["user_name"]
+            )
 
-                return render_template("upload.html", uploaded=True, tables=[df.to_html(classes="table", index=False)], chart=result_data["chart"], results=result_data["ranking"], info=result_data, name=session["user_name"])
-            except Exception as e: flash(f"Error: {e}", "danger")
+        except Exception as e:
+            flash(f"❌ Terjadi kesalahan saat membaca atau memproses file: {e}", "danger")
+            return redirect(request.url)
+
+    # 🔹 GET request — tampilkan halaman kosong
     return render_template("upload.html", uploaded=False, name=session["user_name"])
+
+
+# === HISTORY ROUTE ===
+@app.route("/history")
+def history():
+    if "user_id" not in session:
+        return redirect(url_for("login"))
+
+    histories = AnalysisHistory.query.filter_by(
+        user_id=session["user_id"]
+    ).order_by(AnalysisHistory.date_created.desc()).all()
+
+    return render_template(
+        "history.html",
+        name=session["user_name"],
+        picture=session["user_picture"],
+        histories=histories
+    )
+
+# === CLEAR HISTORY ROUTE ===
+@app.route("/history/clear")
+def clear_history():
+    """Menghapus seluruh riwayat analisis milik user saat ini"""
+    if "user_id" not in session:
+        return redirect(url_for("login"))
+
+    # Hapus semua data history milik user yang login
+    user_id = session["user_id"]
+    AnalysisHistory.query.filter_by(user_id=user_id).delete()
+    db.session.commit()
+
+    flash("Semua riwayat analisis telah dihapus.", "success")
+    return redirect(url_for("history"))
+
+@app.route("/history/<int:id>")
+def view_history_detail(id):
+    if "user_id" not in session:
+        return redirect(url_for("login"))
+
+    history = AnalysisHistory.query.filter_by(id=id, user_id=session["user_id"]).first_or_404()
+
+    import json
+    result_data = {}
+    tables = []
+    chart = None
+    results = []
+
+    try:
+        if history.detail_json:
+            result_data = json.loads(history.detail_json)
+            results = result_data.get("ranking", [])
+            chart = result_data.get("chart")
+            if "table_html" in result_data:
+                tables = [result_data["table_html"]]
+
+        # 💡 Tambahkan fallback aman
+        if "weights" not in result_data:
+            result_data["weights"] = {}
+    except Exception as e:
+        print(f"⚠️ Gagal memuat detail JSON: {e}")
+
+    return render_template(
+        "upload.html",
+        uploaded=True,
+        tables=tables,
+        chart=chart,
+        results=results,
+        info=result_data,
+        name=session["user_name"]
+    )
 
 # --- FINANCE ROUTE ---
 @app.route("/finance", methods=["GET", "POST"])

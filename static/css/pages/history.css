@@ -1,0 +1,50 @@
+/* ==========================
+   PAGE: HISTORY — Blue × Teal Modern
+   ========================== */
+
+.page-history {
+  background-color: #f8f9fa;
+  font-family: 'Poppins', sans-serif;
+  min-height: 100vh;
+}
+
+/* Card & Table Styling */
+.page-history .card {
+  border-radius: 10px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+  overflow: hidden;
+}
+
+.page-history table {
+  border: none;
+}
+
+.page-history thead th {
+  text-transform: uppercase;
+  font-size: 0.9rem;
+  letter-spacing: 0.5px;
+}
+
+.page-history tbody tr:hover {
+  background-color: rgba(32, 201, 151, 0.05);
+  transition: background 0.3s ease;
+}
+
+.page-history td.text-primary {
+  color: #0D6EFD !important;
+}
+
+.page-history .btn-outline-danger {
+  border-radius: 50px;
+  transition: 0.3s;
+}
+
+.page-history .btn-outline-danger:hover {
+  background-color: #dc3545;
+  color: #fff;
+}
+
+/* Footer */
+footer {
+  font-size: 0.9rem;
+}
