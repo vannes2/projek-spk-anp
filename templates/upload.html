@@ -5,16 +5,13 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Upload Data | SPK ANP</title>
 
-    <!-- Bootstrap -->
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
 
-    <!-- Gunakan CSS utama agar warna sama seperti landing page -->
     <link rel="stylesheet" href="{{ url_for('static', filename='css/main.css') }}">
   </head>
 
   <body class="page-upload">
 
-    <!-- Navbar -->
     <nav class="navbar navbar-expand-lg">
       <div class="container">
         <a class="navbar-brand fw-bold text-white" href="/dashboard">SPK ANP</a>
@@ -28,7 +25,6 @@
       </div>
     </nav>
 
-    <!-- Main Content -->
     <main class="container py-5">
       <div class="text-center mb-5">
         <h1 class="fw-bold text-dark">Analisis Pemilihan Lokasi UMKM</h1>
@@ -43,7 +39,6 @@
         {% endwith %}
       </div>
 
-      <!-- Form Upload -->
       <div class="row justify-content-center">
         <div class="col-md-6">
           <div class="card p-4 shadow-sm border-0">
@@ -64,7 +59,6 @@
       <hr class="my-5">
 
       <div class="row">
-        <!-- 📊 Grafik & Tabel Peringkat -->
         <div class="col-lg-8 mb-4">
           <div class="card shadow-sm border-0">
             <div class="card-header bg-white fw-bold d-flex justify-content-between align-items-center">
@@ -94,7 +88,6 @@
           </div>
         </div>
 
-        <!-- 🏆 Peringkat Singkat -->
         <div class="col-lg-4 mb-4">
           <div class="card shadow-sm border-0">
             <div class="card-header bg-white fw-bold">🏆 Hasil Peringkat Alternatif</div>
@@ -122,7 +115,6 @@
         </div>
       </div>
 
-      <!-- 📄 Detail Data -->
       <div class="row mt-4">
         <div class="col-md-12">
           <div class="card shadow-sm border-0">
@@ -152,14 +144,43 @@
                         {% endfor %}
                       </tbody>
                     </table>
-                    <small class="text-muted">Konsistensi (CR): {{ info.CR }} (Valid)</small>
                   </div>
+
                   <div class="col-md-6">
-                    {% if limitmatrix_html %}
-                    <h6 class="fw-bold text-primary">Limit Matrix (Sample)</h6>
-                    <div class="alert alert-secondary py-2"><small>Perhitungan konvergensi matriks telah diterapkan.</small></div>
-                    {% endif %}
+                    <h6 class="fw-bold text-primary">Status Validasi (Consistency Ratio)</h6>
+                    <div class="card bg-light border-0 p-3">
+                        <div class="d-flex justify-content-between align-items-center mb-2">
+                            <span class="fw-bold text-dark">Matriks Kriteria (Bab 3)</span>
+                            {% if info.consistency_report.CR_Criteria_Matrix < 0.1 %}
+                                <span class="badge bg-success">Valid (CR: {{ "%.4f"|format(info.consistency_report.CR_Criteria_Matrix) }})</span>
+                            {% else %}
+                                <span class="badge bg-warning text-dark">CR Tinggi: {{ "%.4f"|format(info.consistency_report.CR_Criteria_Matrix) }}</span>
+                            {% endif %}
+                        </div>
+                        
+                        <p class="mb-1 small text-muted fw-bold">Konsistensi Alternatif per Kriteria:</p>
+                        <table class="table table-sm table-borderless small mb-0">
+                            <tbody>
+                                {% for key, val in info.consistency_report.items() %}
+                                    {% if key.startswith('CR_') and key != 'CR_Criteria_Matrix' %}
+                                    <tr>
+                                        <td class="ps-0">{{ key|replace('CR_', 'Kriteria ') }}</td>
+                                        <td class="text-end font-monospace">{{ "%.4f"|format(val) }}</td>
+                                        <td class="text-end">
+                                            {% if val < 0.1 %}
+                                                <span class="text-success fw-bold">✔ OK</span>
+                                            {% else %}
+                                                <span class="text-danger fw-bold">⚠ Cek</span>
+                                            {% endif %}
+                                        </td>
+                                    </tr>
+                                    {% endif %}
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
                   </div>
+                  
                 </div>
               </div>
             </div>
@@ -170,7 +191,6 @@
       {% endif %}
     </main>
 
-    <!-- Footer -->
     <footer>
       <p>© 2025 SPK ANP | Sistem Pendukung Keputusan Analytic Network Process</p>
     </footer>
