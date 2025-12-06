@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <title>Laporan SPK ANP</title>
-  <link rel="stylesheet" href="{{ url_for('static', filename='css/pdf_spk.css') }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/pages/pdf_spk.css') }}">
 </head>
 
 <body class="pdf-report">
@@ -49,7 +49,6 @@
         {% endfor %}
       </tbody>
     </table>
-    <p style="margin-top:5px;"><i>Konsistensi (CR): {{ info.CR }}</i></p>
   </div>
 </body>
 </html>

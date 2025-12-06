@@ -8,7 +8,9 @@ import json
 import os
 import re
 import io
-from xhtml2pdf import pisa # Library PDF
+from xhtml2pdf import pisa
+from functools import wraps
+from flask import abort
 
 # === Import modul ANP ===
 # Pastikan folder 'anp' ada dan berisi anp_processor.py
@@ -41,6 +43,7 @@ class User(db.Model):
     email = db.Column(db.String(120), unique=True)
     password = db.Column(db.String(255), nullable=True)
     picture = db.Column(db.String(250))
+    role = db.Column(db.String(20), default="user") 
     sales = db.relationship('Sale', backref='owner', lazy=True)
 
 class Sale(db.Model):
@@ -97,7 +100,7 @@ def create_pdf(html_content):
 
 # === ROUTES UTAMA ===
 @app.route("/")
-def index(): return render_template("landing.html")
+def index(): return render_template("user/landing.html")
 
 @app.route("/register", methods=["GET", "POST"])
 def register():
@@ -108,19 +111,36 @@ def register():
         db.session.add(User(name=name, email=email, password=generate_password_hash(pwd, method='pbkdf2:sha256'), picture=None))
         db.session.commit()
         flash("Berhasil daftar.", "success"); return redirect(url_for("login"))
-    return render_template("register.html")
+    return render_template("user/register.html")
 
 @app.route("/login", methods=["GET", "POST"])
 def login():
     if request.method == "POST":
         email, pwd = request.form.get("email"), request.form.get("password")
         user = User.query.filter_by(email=email).first()
-        if user and user.password and check_password_hash(user.password, pwd):
-            session["user_id"] = user.id; session["user_name"] = user.name
-            session["user_picture"] = user.picture if user.picture else f"https://ui-avatars.com/api/?name={user.name}"
-            return redirect(url_for("dashboard"))
-        flash("Login gagal.", "danger")
-    return render_template("login.html")
+
+        if not user:
+            flash("❌ Akun tidak ditemukan.", "danger")
+            return redirect(request.url)
+
+        # ✅ Hanya admin boleh login manual
+        if user.role != "admin":
+            flash("⚠️ Login manual hanya untuk admin. Silakan gunakan login Google.", "warning")
+            return redirect(url_for("login"))
+
+        if user.password and check_password_hash(user.password, pwd):
+            # Simpan sesi admin
+            session["user_id"] = user.id
+            session["user_name"] = user.name
+            session["user_picture"] = user.picture or f"https://ui-avatars.com/api/?name={user.name}"
+            session["user_role"] = user.role
+
+            return redirect(url_for("admin_home"))
+
+        flash("❌ Password salah.", "danger")
+
+    return render_template("user/login.html")
+
 
 @app.route("/login/google")
 def google_login():
@@ -135,10 +155,33 @@ def after_login():
     info = resp.json()
     user = User.query.filter_by(email=info["email"]).first()
     if not user:
-        user = User(name=info["name"], email=info["email"], picture=info["picture"], password=None)
+        user = User(name=info["name"], email=info["email"], picture=info["picture"], password=None, role="user")
         db.session.add(user); db.session.commit()
-    session["user_id"] = user.id; session["user_name"] = user.name; session["user_picture"] = user.picture
+    session["user_id"] = user.id
+    session["user_name"] = user.name
+    session["user_picture"] = user.picture
+    session["user_role"] = user.role or "user"
     return redirect(url_for("dashboard"))
+
+
+
+def admin_required(f):
+    @wraps(f)
+    def decorated_function(*args, **kwargs):
+        if session.get("user_role") != "admin":
+            abort(403)  # Forbidden
+        return f(*args, **kwargs)
+    return decorated_function
+
+
+@app.route("/admin/home")
+@admin_required
+def admin_home():
+    """Halaman utama admin menampilkan daftar user"""
+    users = User.query.all()
+    return render_template("admin/home.html", users=users, name=session.get("user_name"))
+
+
 
 @app.route("/logout")
 def logout(): session.clear(); return redirect(url_for("index"))
@@ -146,7 +189,7 @@ def logout(): session.clear(); return redirect(url_for("index"))
 @app.route("/dashboard")
 def dashboard():
     if "user_id" not in session: return redirect(url_for("login"))
-    return render_template("dashboard.html", name=session["user_name"], picture=session["user_picture"])
+    return render_template("user/dashboard.html", name=session["user_name"], picture=session["user_picture"])
 
 # --- SPK ROUTE ---
 @app.route("/upload", methods=["GET", "POST"])
@@ -217,7 +260,7 @@ def upload_file():
 
             # ✅ Tampilkan hasil di halaman
             return render_template(
-                "upload.html",
+                "user/upload.html",
                 uploaded=True,
                 tables=[result_data["table_html"]],
                 chart=result_data.get("chart"),
@@ -231,7 +274,7 @@ def upload_file():
             return redirect(request.url)
 
     # 🔹 GET request — tampilkan halaman kosong
-    return render_template("upload.html", uploaded=False, name=session["user_name"])
+    return render_template("user/upload.html", uploaded=False, name=session["user_name"])
 
 
 # === HISTORY ROUTE ===
@@ -245,7 +288,7 @@ def history():
     ).order_by(AnalysisHistory.date_created.desc()).all()
 
     return render_template(
-        "history.html",
+        "user/history.html",
         name=session["user_name"],
         picture=session["user_picture"],
         histories=histories
@@ -294,7 +337,7 @@ def view_history_detail(id):
         print(f"⚠️ Gagal memuat detail JSON: {e}")
 
     return render_template(
-        "upload.html",
+        "user/upload.html",
         uploaded=True,
         tables=tables,
         chart=chart,
@@ -321,7 +364,7 @@ def finance():
 
     sales_data = Sale.query.filter_by(user_id=session["user_id"]).all()
     total_profit = sum(s.profit for s in sales_data)
-    return render_template("finance.html", name=session["user_name"], sales=sales_data, total_profit=total_profit)
+    return render_template("user/finance.html", name=session["user_name"], sales=sales_data, total_profit=total_profit)
 
 @app.route("/finance/delete/<int:id>")
 def delete_sale(id):
@@ -447,7 +490,7 @@ def finance_simulation():
         summary = "Tidak ada data makanan valid untuk simulasi."
 
     return render_template(
-        "finance.html",
+        "user/finance.html",
         name=session["user_name"],
         sales=Sale.query.filter_by(user_id=session["user_id"]).all(),
         total_profit=sum(s.profit for s in Sale.query.filter_by(user_id=session["user_id"]).all()),
@@ -469,7 +512,7 @@ def finance_clear():
 
     # Render ulang halaman simulasi dalam keadaan kosong
     return render_template(
-        "finance.html",
+        "user/finance.html",
         name=session["user_name"],
         sales=Sale.query.filter_by(user_id=session["user_id"]).all(),
         total_profit=sum(s.profit for s in Sale.query.filter_by(user_id=session["user_id"]).all()),
