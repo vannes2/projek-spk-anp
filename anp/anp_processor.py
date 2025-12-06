@@ -14,19 +14,23 @@ CHART_DIR = os.path.join(BASE_DIR, "static", "charts")
 os.makedirs(CHART_DIR, exist_ok=True)
 
 # ======================================================
-# 1. HELPER: KONVERSI & PARSING
+# 1. HELPER: KONVERSI & PARSING (SMART REGEX)
 # ======================================================
 def extract_number_and_convert(value_str):
     v = str(value_str).lower().replace(",", "").replace(".", "")
+    # Ambil angka (handle range misal 10-15 -> 12.5)
     numbers = [float(s) for s in re.findall(r'\d+', v)]
     if not numbers: return 0
     base_val = sum(numbers) / len(numbers)
     
+    # FAKTOR PENGALI (SATUAN)
     multiplier = 1
     if "juta" in v: multiplier = 1000000
     elif "ribu" in v or "rb" in v: multiplier = 1000
-    elif "ekor" in v: multiplier = 4        
-    elif "biji" in v or "tusuk" in v: multiplier = 0.2  
+    
+    # SATUAN MAKANAN (KUNCI PERBANDINGAN ADIL)
+    elif "ekor" in v: multiplier = 4        # 1 Ekor Ayam ~ 4 Porsi
+    elif "biji" in v or "tusuk" in v: multiplier = 0.2  # 5 Tusuk ~ 1 Porsi
     
     return base_val * multiplier
 
@@ -38,6 +42,7 @@ def translate_value(column_name, value):
     num_val = extract_number_and_convert(v_orig) 
     score = 1 
 
+    # --- C1: BIAYA SEWA (COST) ---
     if "c1" in col or "sewa" in col:
         if num_val == 0: score = 1
         elif num_val <= 900000: score = 5
@@ -46,6 +51,7 @@ def translate_value(column_name, value):
         elif num_val <= 4500000: score = 2
         else: score = 1
 
+    # --- C2: PENJUALAN (BENEFIT) ---
     elif "c2" in col or "jual" in col:
         if num_val >= 100: score = 5
         elif num_val >= 60: score = 4
@@ -53,13 +59,15 @@ def translate_value(column_name, value):
         elif num_val >= 15: score = 2
         else: score = 1
 
+    # --- C3: BAHAN (BENEFIT) ---
     elif "c3" in col or "bahan" in col:
         if "sangat" in v: score = 5
         elif "cukup" in v: score = 4
         elif "agak sulit" in v: score = 2
         elif "sulit" in v: score = 1
-        else: score = 5
+        else: score = 5 # Default
 
+    # --- C4: FASILITAS (BENEFIT) ---
     elif "c4" in col or "fasil" in col:
         if "tidak ada" in v or v == "-" or v == "": item_count = 0
         else: item_count = v.count(",") + 1
@@ -71,6 +79,7 @@ def translate_value(column_name, value):
         elif item_count == 1: score = 2
         else: score = 1
 
+    # --- C5: PERSAINGAN (COST -> DIBALIK JADI BENEFIT) ---
     elif "c5" in col or "saing" in col:
         if "belum ada" in v: score = 5
         elif "tidak" in v: score = 4
@@ -79,6 +88,7 @@ def translate_value(column_name, value):
         elif "ketat" in v: score = 1
         else: score = 2
 
+    # Safety Check: Jika input Excel sudah angka 1-5
     try:
         if 1 <= float(value) <= 5:
             if float(value) <= 5: score = float(value)
@@ -88,7 +98,7 @@ def translate_value(column_name, value):
     return score
 
 # ======================================================
-# 2. ANP ENGINE (CORE LOGIC: MATRIKS & EIGENVECTOR)
+# 2. ANP ENGINE (CORE LOGIC)
 # ======================================================
 
 def get_saaty_scale(diff_score):
@@ -96,11 +106,16 @@ def get_saaty_scale(diff_score):
     return mapping.get(int(abs(diff_score)), 9)
 
 def get_ri_value(n):
+    """
+    Kamus Random Index (RI) Saaty.
+    Mengambil nilai RI secara otomatis berdasarkan jumlah data (n).
+    """
     ri_dict = {
         1: 0.0, 2: 0.0, 3: 0.58, 4: 0.90, 5: 1.12,
         6: 1.24, 7: 1.32, 8: 1.41, 9: 1.45, 10: 1.49,
         11: 1.51, 12: 1.48, 13: 1.56, 14: 1.57, 15: 1.59
     }
+    # Jika n > 15, gunakan nilai estimasi 1.59
     return ri_dict.get(n, 1.59)
 
 def calculate_priority_vector(matrix):
@@ -110,16 +125,16 @@ def calculate_priority_vector(matrix):
     n = matrix.shape[0]
     col_sum = np.sum(matrix, axis=0)
     
-    # Normalisasi
+    # Normalisasi & Rata-rata Baris
     norm_matrix = matrix / col_sum
     weights = np.mean(norm_matrix, axis=1)
     
-    # Konsistensi
+    # Hitung Konsistensi (Lambda Max, CI, CR)
     lam_max = np.dot(col_sum, weights)
     
     if n > 1:
         CI = (lam_max - n) / (n - 1)
-        RI = get_ri_value(n)
+        RI = get_ri_value(n) # Panggil fungsi dinamis RI
         CR = CI / RI if RI != 0 else 0
     else:
         CI = 0
@@ -143,15 +158,18 @@ def analyze_alternatives_pairwise(scores):
     return calculate_priority_vector(matrix)
 
 # ======================================================
-# [cite_start]3. SUPERMATRIX CALCULATION (FULL DYNAMIC) [cite: 142, 143, 154]
+# 3. SUPERMATRIX CALCULATION (FULL DYNAMIC LIMIT MATRIX)
 # ======================================================
 
 def get_criteria_limit_matrix_weights():
     """
     Menghitung Bobot Akhir Kriteria menggunakan LIMIT SUPERMATRIX.
-    Data diambil dari dokumen Bab 3 (Inner Dependence).
+    Algoritma ini mensimulasikan perhitungan ANP Network Bab 3
+    secara real-time menggunakan matriks dan pemangkatan.
     """
     
+    # --- A. MATRIKS UTAMA (CRITERIA COMPARISON) ---
+    # Sumber: Bab 3 (Matriks Saaty untuk Kriteria)
     main_matrix = np.array([
         [1,   1/7, 3,   1/5, 1/3], # C1
         [7,   1,   9,   3,   5  ], # C2
@@ -161,33 +179,40 @@ def get_criteria_limit_matrix_weights():
     ])
     w_main, ci_main, cr_main = calculate_priority_vector(main_matrix)
 
+    # --- B. INNER DEPENDENCE (KETERGANTUNGAN DALAM) ---
+    # Di Bab 3: C2 (Penjualan) dipengaruhi oleh C3, C4, C5
+    # Matriks Perbandingan: Mana yang lebih mempengaruhi C2?
     dep_c2_matrix = np.array([
         [1,   1/5, 1/3], # C3
         [5,   1,   3  ], # C4
         [3,   1/3, 1  ]  # C5
     ])
     w_dep_c2, _, _ = calculate_priority_vector(dep_c2_matrix)
+    # Mapping hasil w_dep_c2: index 0->C3, 1->C4, 2->C5
     
-    
+    # --- C. KONSTRUKSI UNWEIGHTED SUPERMATRIX ---
     supermatrix = np.zeros((5, 5))
-
+    
+    # Isi Supermatrix (Kolom = Yang Mempengaruhi, Baris = Yang Dipengaruhi)
+    # Default: Ambil dari Bobot Utama (w_main)
     for i in range(5):
         supermatrix[i, 0] = w_main[i] # Col C1
         supermatrix[i, 2] = w_main[i] # Col C3
         supermatrix[i, 3] = w_main[i] # Col C4
         supermatrix[i, 4] = w_main[i] # Col C5
         
-    supermatrix[0, 1] = 0.0 # C1 tidak mempengaruhi C2 di inner dep ini
-    supermatrix[1, 1] = 0.0 # C2 (self)
+    # Terapkan Inner Dependence pada Kolom C2
+    supermatrix[0, 1] = 0.0 # C1
+    supermatrix[1, 1] = 0.0 # C2 (Self)
     supermatrix[2, 1] = w_dep_c2[0] # C3
     supermatrix[3, 1] = w_dep_c2[1] # C4
     supermatrix[4, 1] = w_dep_c2[2] # C5
     
-   
+    # --- D. PERHITUNGAN LIMIT SUPERMATRIX (M^∞) ---
+    # Kita pangkatkan matriks berulang kali sampai stabil
+    limit_matrix = np.linalg.matrix_power(supermatrix, 100) # Pangkat 100
     
-    limit_matrix = np.linalg.matrix_power(supermatrix, 100) # Pangkat 100 cukup untuk stabil
-    
-    # Ambil bobot akhir dari salah satu kolom (biasanya kolomnya jadi sama semua)
+    # Ambil bobot akhir dari salah satu kolom
     final_weights_array = limit_matrix[:, 0]
     
     # Normalisasi akhir (untuk memastikan jumlah = 1)
@@ -254,10 +279,8 @@ def run_anp_analysis(df):
         detailed_consistency[f"CR_{key}"] = cr
 
     # 4. Ambil Bobot Kriteria (HITUNGAN MATRIKS DINAMIS)
-
     global_weights, criteria_report = get_criteria_limit_matrix_weights()
     
-   
     # 5. Sintesis Akhir
     alts = df[alt_col].tolist()
     final_scores = np.zeros(len(alts))

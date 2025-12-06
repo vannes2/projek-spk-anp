@@ -246,48 +246,47 @@ def admin_logs():
     return render_template("admin/logs.html", logs=logs)
 
 # === ADMIN: Kriteria (update + delete handling) ===
-@app.route("/admin/kriteria", methods=["GET", "POST"])
-@admin_required
+@app.route('/admin/kriteria', methods=['GET', 'POST'])
 def admin_kriteria():
-    # HANDLE TAMBAH (POST)
-    if request.method == "POST":
-        name = request.form.get("name")
-        desc = request.form.get("description")
-        weight = request.form.get("weight_default") or 0
+    # Opsional: Cek apakah user sudah login / admin
+    # if 'user_id' not in session: return redirect(url_for('login'))
+
+    filename = 'anp_config.json'
+    criteria_names = ["C1 (Sewa)", "C2 (Jual)", "C3 (Bahan)", "C4 (Fasilitas)", "C5 (Saing)"]
+
+    if request.method == 'POST':
+        # 1. Ambil data dari Form Matrix
         try:
-            weight = float(weight)
-        except ValueError:
-            weight = 0.0
-
-        if not name:
-            flash("Nama kriteria wajib diisi!", "danger")
-            return redirect(url_for("admin_kriteria"))
-
-        new_kriteria = Criteria(name=name, description=desc, weight_default=weight)
-        db.session.add(new_kriteria)
-        db.session.commit()
-
-        flash("Kriteria berhasil ditambahkan!", "success")
-        return redirect(url_for("admin_kriteria"))
-
-    # HANDLE DELETE via GET param ?delete=<id>
-    del_id = request.args.get("delete")
-    if del_id:
-        try:
-            c = Criteria.query.get(int(del_id))
-            if c:
-                db.session.delete(c)
-                db.session.commit()
-                flash("Kriteria berhasil dihapus.", "success")
-            else:
-                flash("Kriteria tidak ditemukan.", "warning")
+            new_matrix = [[0.0]*5 for _ in range(5)]
+            
+            for i in range(5):
+                for j in range(5):
+                    if i == j:
+                        new_matrix[i][j] = 1.0
+                    else:
+                        val = request.form.get(f'cell_{i}_{j}')
+                        new_matrix[i][j] = float(val) if val else 1.0
+            
+            # 2. Simpan ke JSON
+            with open(filename, 'w') as f:
+                json.dump({"matrix": new_matrix}, f)
+                
+            flash("✅ Matriks Kriteria berhasil diperbarui! Perhitungan ANP otomatis menyesuaikan.", "success")
         except Exception as e:
-            flash(f"Gagal menghapus kriteria: {e}", "danger")
-        return redirect(url_for("admin_kriteria"))
+            flash(f"❌ Gagal menyimpan: {str(e)}", "danger")
+            
+        return redirect(url_for('admin_kriteria'))
 
-    # DEFAULT: tampilkan halaman kriteria
-    criteria = Criteria.query.order_by(Criteria.id).all()
-    return render_template("admin/kriteria.html", criteria=criteria)
+    # --- GET: TAMPILKAN MATRIKS SAAT INI ---
+    try:
+        with open(filename, 'r') as f:
+            data = json.load(f)
+            current_matrix = data["matrix"]
+    except:
+        # Default jika file belum ada
+        current_matrix = [[1]*5 for _ in range(5)] 
+
+    return render_template('admin/kriteria.html', matrix=current_matrix, names=criteria_names)
 
 
 # === ADMIN: Edit Kriteria (POST dari modal) ===
@@ -314,7 +313,6 @@ def admin_kriteria_edit(id):
     db.session.commit()
     flash("Kriteria berhasil diperbarui.", "success")
     return redirect(url_for('admin_kriteria'))
-
 
 
 @app.route("/logout")
@@ -479,8 +477,6 @@ def view_history_detail(id):
         return redirect(url_for("login"))
 
     history = AnalysisHistory.query.filter_by(id=id, user_id=session["user_id"]).first_or_404()
-
-    import json
     result_data = {}
     tables = []
     chart = None
