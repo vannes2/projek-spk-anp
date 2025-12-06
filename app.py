@@ -11,9 +11,9 @@ import io
 from xhtml2pdf import pisa
 from functools import wraps
 from flask import abort
-
-# === Import modul ANP ===
-# Pastikan folder 'anp' ada dan berisi anp_processor.py
+from datetime import datetime
+from urllib.parse import unquote
+from flask import send_file
 from anp.anp_processor import run_anp_analysis
 
 app = Flask(__name__)
@@ -62,6 +62,64 @@ class AnalysisHistory(db.Model):
     best_score = db.Column(db.Float)
     detail_json = db.Column(db.Text)
     date_created = db.Column(db.DateTime, default=db.func.current_timestamp())
+    
+class SystemLog(db.Model):
+    __tablename__ = "system_logs"
+    id = db.Column(db.Integer, primary_key=True)
+    timestamp = db.Column(db.DateTime, default=datetime.utcnow)
+    level = db.Column(db.String(20))   
+    actor = db.Column(db.String(100))  
+    action = db.Column(db.String(200))
+    detail = db.Column(db.String(500))
+
+    def __repr__(self):
+        return f"<Log {self.level} {self.action}>"
+
+class Criteria(db.Model):
+    __tablename__ = "criteria"
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(200), nullable=False)
+    description = db.Column(db.String(500))
+    weight_default = db.Column(db.Float, default=0.0)
+    aliases = db.Column(db.String(500))   # comma-separated aliases, e.g. "sewa,harga sewa,biaya_sewa"
+
+    def __repr__(self):
+        return f"<Criteria {self.id} {self.name}>"
+
+
+def normalize_aliases(aliases_str):
+    """Return list of cleaned alias tokens (lowercase, stripped)."""
+    if not aliases_str:
+        return []
+    parts = [p.strip().lower() for p in aliases_str.split(",") if p.strip()]
+    # also keep multi-word tokens
+    return parts
+
+def map_columns_using_criteria_db(df):
+    """
+    Coba mapping otomatis: untuk setiap Criteria (urut), pakai aliases+name untuk mencari kolom.
+    Return dict mapping criteria_name -> matched_column_or_None
+    """
+    cols = list(df.columns)
+    mapped = {}
+    # ambil criteria sorted by id (as they likely correspond to C1..C5)
+    criteria_list = Criteria.query.order_by(Criteria.id).all()
+    for idx, c in enumerate(criteria_list):
+        aliases = normalize_aliases(c.aliases)
+        # selalu sertakan nama criteria sendiri (lowercase)
+        if c.name:
+            aliases.append(c.name.lower())
+        found = None
+        for col in cols:
+            col_l = str(col).lower()
+            # match jika salah satu alias ada di nama kolom (contain)
+            if any(a in col_l for a in aliases if a):
+                found = col
+                break
+        mapped[c.name] = found
+    return mapped
+
+
 
 # === FILTER FORMAT RUPIAH ===
 @app.template_filter('rupiah')
@@ -181,6 +239,82 @@ def admin_home():
     users = User.query.all()
     return render_template("admin/home.html", users=users, name=session.get("user_name"))
 
+@app.route("/admin/logs")
+@admin_required
+def admin_logs():
+    logs = SystemLog.query.order_by(SystemLog.timestamp.desc()).limit(200).all()
+    return render_template("admin/logs.html", logs=logs)
+
+# === ADMIN: Kriteria (update + delete handling) ===
+@app.route("/admin/kriteria", methods=["GET", "POST"])
+@admin_required
+def admin_kriteria():
+    # HANDLE TAMBAH (POST)
+    if request.method == "POST":
+        name = request.form.get("name")
+        desc = request.form.get("description")
+        weight = request.form.get("weight_default") or 0
+        try:
+            weight = float(weight)
+        except ValueError:
+            weight = 0.0
+
+        if not name:
+            flash("Nama kriteria wajib diisi!", "danger")
+            return redirect(url_for("admin_kriteria"))
+
+        new_kriteria = Criteria(name=name, description=desc, weight_default=weight)
+        db.session.add(new_kriteria)
+        db.session.commit()
+
+        flash("Kriteria berhasil ditambahkan!", "success")
+        return redirect(url_for("admin_kriteria"))
+
+    # HANDLE DELETE via GET param ?delete=<id>
+    del_id = request.args.get("delete")
+    if del_id:
+        try:
+            c = Criteria.query.get(int(del_id))
+            if c:
+                db.session.delete(c)
+                db.session.commit()
+                flash("Kriteria berhasil dihapus.", "success")
+            else:
+                flash("Kriteria tidak ditemukan.", "warning")
+        except Exception as e:
+            flash(f"Gagal menghapus kriteria: {e}", "danger")
+        return redirect(url_for("admin_kriteria"))
+
+    # DEFAULT: tampilkan halaman kriteria
+    criteria = Criteria.query.order_by(Criteria.id).all()
+    return render_template("admin/kriteria.html", criteria=criteria)
+
+
+# === ADMIN: Edit Kriteria (POST dari modal) ===
+@app.route("/admin/kriteria/edit/<int:id>", methods=["POST"])
+@admin_required
+def admin_kriteria_edit(id):
+    k = Criteria.query.get_or_404(id)
+    name = request.form.get('name')
+    desc = request.form.get('description')
+    weight = request.form.get('weight_default')
+
+    if not name:
+        flash("Nama kriteria wajib diisi!", "danger")
+        return redirect(url_for('admin_kriteria'))
+
+    k.name = name
+    k.description = desc or ""
+    try:
+        k.weight_default = float(weight) if weight is not None and weight != "" else k.weight_default
+    except ValueError:
+        # abaikan jika bukan angka
+        pass
+
+    db.session.commit()
+    flash("Kriteria berhasil diperbarui.", "success")
+    return redirect(url_for('admin_kriteria'))
+
 
 
 @app.route("/logout")
@@ -204,6 +338,14 @@ def upload_file():
         # 🔒 Validasi file
         if not file or not allowed_file(file.filename):
             flash("⚠️ Harap unggah file dengan format CSV atau Excel.", "warning")
+
+            # Log attempt invalid upload
+            write_log(
+                "WARN",
+                f"user:{session.get('user_id')}",
+                "Upload Failed",
+                f"invalid_file={bool(file)};filename={getattr(file,'filename',None)}"
+            )
             return redirect(request.url)
 
         filename = secure_filename(file.filename)
@@ -215,7 +357,7 @@ def upload_file():
             # 📘 Baca file (CSV/Excel)
             if filename.endswith(".csv"):
                 df = pd.read_csv(filepath, sep=";", engine="python")
-                if len(df.columns) == 1:  # fallback: mungkin koma bukan titik koma
+                if len(df.columns) == 1:
                     df = pd.read_csv(filepath, sep=",", engine="python")
             else:
                 df = pd.read_excel(filepath)
@@ -224,6 +366,7 @@ def upload_file():
             video_map = {}
             col_name = df.columns[0]
             col_video = next((c for c in df.columns if "video" in c.lower() or "link" in c.lower()), None)
+
             if col_video:
                 for _, row in df.iterrows():
                     video_map[str(row[col_name])] = convert_youtube_embed(str(row[col_video]))
@@ -231,34 +374,48 @@ def upload_file():
             # ⚙️ Jalankan analisis ANP
             result_data = run_anp_analysis(df)
 
-            # 💡 Tambahkan hasil tabel ke JSON agar bisa ditampilkan ulang di riwayat
+            # 💡 Tambahkan hasil tabel ke JSON agar bisa ditampilkan ulang
             result_data["table_html"] = df.to_html(classes="table table-bordered", index=False)
 
-            # 💡 Tambahkan video ke setiap alternatif jika tersedia
+            # 💡 Tambahkan video ke setiap alternatif
             for item in result_data.get("ranking", []):
                 item["video_url"] = video_map.get(item.get("Alternatif"))
 
-            # 🧠 Debug: tampilkan data yang akan disimpan
-            print("DEBUG RESULT DATA:", result_data.keys())
-            print("DEBUG DETAIL_JSON PREVIEW:", json.dumps(result_data)[:300])
-
-            # 💾 Simpan hasil terbaik & detail lengkap ke database
+            # 💾 Simpan hasil terbaik & detail analisis
             try:
                 best_result = max(result_data["ranking"], key=lambda x: x["Skor_Global"])
+
                 new_history = AnalysisHistory(
                     user_id=session["user_id"],
                     filename=filename,
                     best_location=best_result["Alternatif"],
                     best_score=best_result["Skor_Global"],
-                    detail_json=json.dumps(result_data)  # ✅ simpan seluruh hasil analisis
+                    detail_json=json.dumps(result_data)
                 )
+
                 db.session.add(new_history)
                 db.session.commit()
                 print(f"✅ Riwayat berhasil disimpan untuk file: {filename}")
+
+                # — LOG: berhasil menjalankan analisis ANP
+                write_log(
+                    "INFO",
+                    f"user:{session['user_id']}",
+                    "Analisis ANP",
+                    f"file={filename};path={filepath};history_id={new_history.id}"  # ⬅️ DITAMBAHKAN
+                )
+
             except Exception as e:
                 print(f"⚠️ Gagal menyimpan riwayat ke database: {e}")
 
-            # ✅ Tampilkan hasil di halaman
+                write_log(
+                    "ERROR",
+                    f"user:{session.get('user_id')}",
+                    "ANP Save Error",
+                    f"file={filename};error={e}"
+                )
+
+            # ✅ Tampilkan hasil analisis
             return render_template(
                 "user/upload.html",
                 uploaded=True,
@@ -270,6 +427,13 @@ def upload_file():
             )
 
         except Exception as e:
+            # LOG: error saat memproses file / analisis
+            write_log(
+                "ERROR",
+                f"user:{session.get('user_id')}",
+                "ANP Processing Error",
+                f"file={filename};error={e}"
+            )
             flash(f"❌ Terjadi kesalahan saat membaca atau memproses file: {e}", "danger")
             return redirect(request.url)
 
@@ -521,6 +685,77 @@ def finance_clear():
         summary=None,
         form_data=None
     )
+
+def write_log(level, actor, action, detail=""):
+    try:
+        entry = SystemLog(
+            level=(level or "INFO").upper(),
+            actor=str(actor),
+            action=str(action),
+            detail=str(detail)
+        )
+        db.session.add(entry)
+        db.session.commit()
+        print("[LOGGED]", level, actor, action)
+    except Exception as e:
+        print("[LOG ERROR]", e)
+
+@app.route("/admin/download")
+@admin_required
+def admin_download_file():
+    # DEBUG: tunjukkan session saat route dipanggil
+    print("\n=== DEBUG admin_download_file SESSION ===")
+    try:
+        for k in ["user_id","user_name","user_role"]:
+            print(f" session[{k}] =", session.get(k))
+    except Exception as e:
+        print(" session debug error:", e)
+
+    raw_path = request.args.get("path")
+    raw_file = request.args.get("file")
+
+    # jika hanya file param diberikan, bangun path dari UPLOAD_FOLDER
+    if not raw_path and raw_file:
+        raw_path = os.path.join(app.config["UPLOAD_FOLDER"], os.path.basename(raw_file))
+
+    if not raw_path:
+        flash("Path file tidak ditemukan.", "danger")
+        return redirect(url_for("admin_logs"))
+
+    path = unquote(raw_path)
+    abs_path = os.path.abspath(os.path.normpath(path))
+    upload_dir = os.path.abspath(os.path.normpath(app.config["UPLOAD_FOLDER"]))
+
+    # DEBUG info path
+    print(" raw_path:", raw_path)
+    print(" decoded path:", path)
+    print(" abs_path:", abs_path)
+    print(" upload_dir:", upload_dir)
+
+    # keamanan: pastikan berada dalam upload_dir
+    try:
+        common = os.path.commonpath([abs_path, upload_dir])
+    except Exception:
+        common = None
+
+    if not common or os.path.normcase(common) != os.path.normcase(upload_dir):
+        print("DEBUG: access denied - path outside upload_dir")
+        flash("Akses file ditolak.", "danger")
+        return redirect(url_for("admin_logs"))
+
+    if not os.path.exists(abs_path):
+        print("DEBUG: file not exists:", abs_path)
+        flash("File tidak ditemukan di server.", "danger")
+        return redirect(url_for("admin_logs"))
+
+    try:
+        return send_file(abs_path, as_attachment=True)
+    except Exception as e:
+        print("ERROR sending file:", e)
+        flash(f"Gagal mengirim file: {e}", "danger")
+        return redirect(url_for("admin_logs"))
+
+
 
 
 if __name__ == "__main__":

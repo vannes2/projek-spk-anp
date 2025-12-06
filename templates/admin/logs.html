@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <title>Log Sistem | Admin - SPK ANP</title>
+
+  <!-- Bootstrap -->
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+
+  <!-- Admin CSS (sama seperti home) -->
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/admin/home.css') }}">
+
+  <!-- Icons -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css">
+</head>
+
+<body class="page-admin">
+
+  <div class="admin-wrapper d-flex">
+
+    <!-- SIDEBAR -->
+    <aside id="sidebar" class="bg-dark text-white">
+      <div class="sidebar-header p-3 text-center border-bottom border-secondary">
+        <h4 class="fw-bold mb-0">SPK ANP Admin</h4>
+      </div>
+
+      <ul class="nav flex-column p-3">
+        <li class="nav-item mb-2">
+          <a href="{{ url_for('admin_home') }}" class="nav-link text-white">
+            <i class="bi bi-house-door-fill"></i> Dashboard
+          </a>
+        </li>
+
+        <li class="nav-item mb-2">
+          <a href="{{ url_for('admin_logs') }}" class="nav-link text-white active">
+            <i class="bi bi-file-text-fill"></i> Log Sistem
+          </a>
+        </li>
+
+        <li class="nav-item mb-2">
+          <a href="{{ url_for('admin_kriteria') }}" class="nav-link text-white">
+            <i class="bi bi-sliders"></i> Kelola Kriteria
+          </a>
+        </li>
+      </ul>
+
+      <div class="p-3 mt-auto border-top border-secondary">
+        <a href="{{ url_for('logout') }}" class="btn btn-outline-light w-100">
+          <i class="bi bi-box-arrow-right"></i> Logout
+        </a>
+      </div>
+    </aside>
+
+    <!-- PAGE BODY -->
+    <main id="page-body" class="flex-grow-1 p-4">
+
+      <div class="container-fluid">
+
+        <h2 class="fw-bold mb-3 text-primary">📄 Log Sistem</h2>
+        <p class="text-muted mb-4">Riwayat aktivitas sistem, pengguna, dan admin.</p>
+
+        <!-- FILTER -->
+        <div class="card shadow-sm mb-4 p-3">
+          <form method="get" class="row g-3">
+
+            <div class="col-md-4">
+              <label class="form-label">Actor</label>
+              <input type="text" name="actor" value="{{ request.args.get('actor','') }}"
+                     class="form-control" placeholder="contoh: user:8 / admin:1">
+            </div>
+
+            <div class="col-md-3 d-flex align-items-end">
+              <button class="btn btn-primary me-2">
+                <i class="bi bi-funnel"></i> Filter
+              </button>
+
+              <a href="{{ url_for('admin_logs') }}" class="btn btn-outline-secondary">
+                Reset
+              </a>
+            </div>
+
+          </form>
+        </div>
+
+        <!-- TABLE LOG -->
+        <div class="card shadow-sm">
+          <div class="card-header bg-primary text-white fw-bold">
+            Riwayat Log Sistem
+          </div>
+
+          <div class="card-body p-0">
+            <table class="table table-striped table-bordered mb-0 logs-table">
+              <thead class="table-primary">
+                <tr>
+                  <th class="col-time">Waktu</th>
+                  <th class="col-actor">Actor</th>
+                  <th class="col-action">Aksi</th>
+                  <th>Detail</th>
+                </tr>
+              </thead>
+
+              <tbody>
+                {% for l in logs %}
+                <tr>
+                  <td>{{ l.timestamp }}</td>
+                  <td>{{ l.actor }}</td>
+                  <td>{{ l.action }}</td>
+
+                <td class="log-detail">
+                    {% if l.detail %}
+                        {% set file = None %}
+                        {% set path = None %}
+
+                        {% for token in l.detail.split(';') %}
+                        {% set t = token.strip() %}
+                        {% if t.startswith('file=') %}
+                            {% set file = t[5:] %}
+                        {% elif t.startswith('path=') %}
+                            {% set path = t[5:] %}
+                        {% endif %}
+                        {% endfor %}
+
+                        {% if path %}
+                        <div>
+                            <b>File:</b>
+                            <a href="{{ url_for('admin_download_file') }}?path={{ path | urlencode }}" target="_blank">
+                            <i class="bi bi-download me-1"></i> {{ file or path.split('/')[-1] }}
+                            </a>
+                        </div>
+                        {% elif file %}
+                        <div>
+                            <b>File:</b>
+                            <a href="{{ url_for('admin_download_file') }}?file={{ file | urlencode }}" target="_blank">
+                            <i class="bi bi-download me-1"></i> {{ file }}
+                            </a>
+                        </div>
+                        {% endif %}
+
+                        <div class="mt-1">{{ l.detail }}</div>
+                    {% else %}
+                        -
+                    {% endif %}
+                    </td>
+                </tr>
+                {% else %}
+                <tr>
+                  <td colspan="4" class="text-center text-muted py-4">
+                    Tidak ada log untuk ditampilkan.
+                  </td>
+                </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+
+          <div class="card-footer text-muted small text-center">
+            Menampilkan maksimal 200 entri terbaru.
+          </div>
+        </div>
+
+      </div>
+    </main>
+
+  </div>
+
+</body>
+</html>
