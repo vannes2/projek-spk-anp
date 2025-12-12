@@ -144,17 +144,3 @@
   flex: 1;
 }
 
-/* Responsive */
-@media (max-width: 767px) {
-  .page-dashboard .hero {
-    padding: 70px 1.25rem;
-  }
-
-  .page-dashboard .hero h1 {
-    font-size: 2rem;
-  }
-
-  .page-dashboard .features {
-    padding: 45px 0;
-  }
-}

@@ -5,77 +5,115 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>SPK ANP | Riwayat Analisis</title>
 
-    <!-- Bootstrap -->
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
 
-    <!-- File CSS utama -->
     <link rel="stylesheet" href="{{ url_for('static', filename='css/main.css') }}">
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/pages/history.css') }}">
   </head>
 
-  <body class="page-history bg-light">
+  <body class="page-history bg-light d-flex flex-column min-vh-100">
 
-    <!-- Navbar -->
-    <nav class="navbar navbar-expand-lg navbar-dark shadow-sm"
-         style="background: linear-gradient(90deg, #0D6EFD, #20C997);">
+    <nav class="navbar navbar-expand-lg navbar-dark shadow-sm" style="background: linear-gradient(90deg, #0D6EFD, #20C997);">
       <div class="container">
-        <a class="navbar-brand fw-bold" href="{{ url_for('dashboard') }}">SPK ANP</a>
-        <div class="d-flex align-items-center text-white gap-3">
-          <span>{{ name }}</span>
-          {% if picture %}
-          <img src="{{ picture }}" class="rounded-circle" width="35">
-          {% endif %}
-          <a href="{{ url_for('logout') }}" class="btn btn-danger btn-sm">Logout</a>
+        <a class="navbar-brand fw-bold" href="{{ url_for('dashboard') }}">
+            <i class="fas fa-chart-line me-2"></i>SPK ANP
+        </a>
+        
+        <button class="navbar-toggler border-0" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+            <span class="navbar-toggler-icon"></span>
+        </button>
+
+        <div class="collapse navbar-collapse justify-content-end" id="navbarNav">
+            <div class="d-flex align-items-center mt-3 mt-lg-0 text-white gap-3 text-nowrap">
+                
+                <span class="d-none d-lg-block fw-semibold">{{ name }}</span>
+                
+                {% if picture %}
+                <img src="{{ picture }}" class="rounded-circle d-none d-lg-block border border-2 border-white" width="35">
+                {% endif %}
+                
+                <a href="{{ url_for('logout') }}" class="btn btn-outline-light btn-sm w-100 fw-bold shadow-sm">
+                    <i class="fas fa-sign-out-alt me-1"></i> Logout
+                </a>
+            </div>
         </div>
       </div>
     </nav>
 
-    <!-- Main Content -->
-    <main class="container py-5">
-      <div class="d-flex justify-content-between align-items-center mb-4">
-        <div>
-          <h2 class="fw-bold text-success mb-0">Riwayat Analisis ANP</h2>
-          <p class="text-muted mb-0">Lihat hasil analisis lokasi usaha yang telah Anda lakukan sebelumnya.</p>
+    <main class="container py-5 flex-grow-1">
+      
+      <div class="row align-items-center mb-4 g-3">
+        <div class="col-md-6 text-center text-md-start">
+          <h2 class="fw-bold text-success mb-1">
+            <i class="fas fa-history me-2"></i>Riwayat Analisis
+          </h2>
+          <p class="text-muted mb-0">Arsip hasil perhitungan lokasi terbaik Anda.</p>
         </div>
-        <div>
-          <a href="{{ url_for('upload_file') }}" class="btn btn-primary">
-            <i class="fas fa-plus-circle me-1"></i> Analisis Baru
-          </a>
+        
+        <div class="col-md-6">
+          <div class="d-flex gap-2 justify-content-center justify-content-md-end">
+            
+            {% if histories %}
+            <a href="{{ url_for('clear_history') }}" class="btn btn-outline-danger shadow-sm"
+               onclick="return confirm('Yakin ingin menghapus SEMUA riwayat? Data tidak bisa kembali.')">
+               <i class="fas fa-trash-alt me-1"></i> Hapus Semua
+            </a>
+            {% endif %}
+
+            <a href="{{ url_for('upload_file') }}" class="btn btn-primary shadow-sm">
+              <i class="fas fa-plus-circle me-1"></i> Analisis Baru
+            </a>
+
+          </div>
         </div>
       </div>
 
-      <!-- Tabel Riwayat -->
-      <div class="card shadow-sm border-0">
+      <div class="card shadow border-0 rounded-3 overflow-hidden">
         <div class="card-body p-0">
           <div class="table-responsive">
-            <table class="table table-hover align-middle text-center mb-0">
-              <thead style="background: linear-gradient(90deg, #0D6EFD, #20C997); color: white;">
+            <table class="table table-hover align-middle text-center mb-0 text-nowrap">
+              <thead class="text-white" style="background: linear-gradient(90deg, #0D6EFD, #20C997);">
                 <tr>
-                  <th>No</th>
-                  <th>Nama File</th>
-                  <th>Lokasi Terbaik</th>
-                  <th>Skor</th>
-                  <th>Tanggal Analisis</th>
-                  <th>Detail</th>
+                  <th class="py-3">No</th>
+                  <th class="py-3">Nama File</th>
+                  <th class="py-3">Lokasi Terbaik</th>
+                  <th class="py-3">Skor</th>
+                  <th class="py-3">Tanggal Analisis</th>
+                  <th class="py-3">Aksi</th>
                 </tr>
               </thead>
               <tbody>
                 {% for h in histories %}
                 <tr>
                   <td>{{ loop.index }}</td>
-                  <td class="fw-semibold">{{ h.filename }}</td>
-                  <td class="text-primary fw-bold">{{ h.best_location }}</td>
-                  <td>{{ "%.4f"|format(h.best_score) }}</td>
-                  <td>{{ h.date_created.strftime("%d %B %Y, %H:%M") }}</td>
+                  <td class="fw-semibold text-start ps-4">
+                      <i class="far fa-file-excel text-success me-2"></i>{{ h.filename }}
+                  </td>
                   <td>
-                    <a href="{{ url_for('view_history_detail', id=h.id) }}" class="btn btn-outline-primary btn-sm">
-                      <i class="fas fa-eye"></i> Lihat
+                      <span class="badge bg-success bg-opacity-10 text-success border border-success px-3 py-2 rounded-pill">
+                          {{ h.best_location }}
+                      </span>
+                  </td>
+                  <td class="fw-bold text-dark">{{ "%.4f"|format(h.best_score) }}</td>
+                  <td class="text-muted small">
+                      <i class="far fa-calendar-alt me-1"></i>
+                      {{ h.date_created.strftime("%d %b %Y, %H:%M") }}
+                  </td>
+                  <td>
+                    <a href="{{ url_for('view_history_detail', id=h.id) }}" class="btn btn-sm btn-outline-primary shadow-sm">
+                      <i class="fas fa-search me-1"></i> Detail
                     </a>
                   </td>
                 </tr>
                 {% else %}
                 <tr>
-                  <td colspan="6" class="py-4 text-muted">Belum ada riwayat analisis.</td>
+                  <td colspan="6" class="py-5 text-muted">
+                      <div class="d-flex flex-column align-items-center">
+                          <i class="fas fa-folder-open fa-3x mb-3 text-secondary opacity-50"></i>
+                          <h6 class="fw-bold">Belum ada riwayat analisis.</h6>
+                          <p class="small mb-0">Mulai analisis pertama Anda sekarang!</p>
+                      </div>
+                  </td>
                 </tr>
                 {% endfor %}
               </tbody>
@@ -84,25 +122,15 @@
         </div>
       </div>
 
-      {% if histories %}
-      <div class="text-end mt-3">
-        <a href="{{ url_for('clear_history') }}" class="btn btn-outline-danger btn-sm"
-           onclick="return confirm('Hapus semua riwayat analisis Anda?')">
-           <i class="fas fa-trash-alt"></i> Hapus Semua Riwayat
-        </a>
-      </div>
-      {% endif %}
     </main>
 
-    <!-- Footer -->
-    <footer class="mt-5">
-      <div class="container text-center text-white py-3"
-           style="background: linear-gradient(90deg, #0D6EFD, #20C997); box-shadow: 0 -4px 12px rgba(0,0,0,0.1); border-radius: 8px 8px 0 0;">
-        <p class="mb-0">© 2025 SPK ANP | Sistem Pendukung Keputusan Analytic Network Process</p>
+    <footer class="mt-auto">
+      <div class="container text-center text-white py-3 mt-4"
+           style="background: linear-gradient(90deg, #0D6EFD, #20C997); border-radius: 12px 12px 0 0;">
+        <p class="mb-0 small fw-semibold">© 2025 SPK ANP | Sistem Pendukung Keputusan</p>
       </div>
     </footer>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/js/all.min.js"></script>
   </body>
 </html>

@@ -174,28 +174,33 @@ def register():
 @app.route("/login", methods=["GET", "POST"])
 def login():
     if request.method == "POST":
-        email, pwd = request.form.get("email"), request.form.get("password")
+        email = request.form.get("email")
+        pwd = request.form.get("password")
+        
+        # Cari user berdasarkan email
         user = User.query.filter_by(email=email).first()
 
+        # 1. Cek apakah user ada
         if not user:
-            flash("❌ Akun tidak ditemukan.", "danger")
-            return redirect(request.url)
-
-        # ✅ Hanya admin boleh login manual
-        if user.role != "admin":
-            flash("⚠️ Login manual hanya untuk admin. Silakan gunakan login Google.", "warning")
+            flash("❌ Akun tidak ditemukan. Silakan daftar dulu.", "danger")
             return redirect(url_for("login"))
 
+        # 2. Cek Password
         if user.password and check_password_hash(user.password, pwd):
-            # Simpan sesi admin
             session["user_id"] = user.id
             session["user_name"] = user.name
             session["user_picture"] = user.picture or f"https://ui-avatars.com/api/?name={user.name}"
             session["user_role"] = user.role
 
-            return redirect(url_for("admin_home"))
-
-        flash("❌ Password salah.", "danger")
+            # 3. Redirect Sesuai Role (PENTING!)
+            if user.role == "admin":
+                return redirect(url_for("admin_home")) # Admin ke panel admin
+            else:
+                return redirect(url_for("dashboard"))  # User biasa ke dashboard
+        
+        else:
+            flash("❌ Password salah.", "danger")
+            return redirect(url_for("login"))
 
     return render_template("user/login.html")
 

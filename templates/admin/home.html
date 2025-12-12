@@ -3,46 +3,38 @@
 <head>
   <meta charset="UTF-8">
   <title>Dashboard Admin | SPK ANP</title>
-
-  <!-- Bootstrap -->
-  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
-
-  <!-- Admin CSS -->
+  <meta name="viewport" content="width=device-width, initial-scale=1"> <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
   <link rel="stylesheet" href="{{ url_for('static', filename='css/admin/home.css') }}">
-
-  <!-- Bootstrap Icons -->
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css">
 </head>
 
 <body class="page-admin">
-  <div class="admin-wrapper d-flex">
+  
+  <div id="mobile-overlay" onclick="toggleSidebar()"></div>
 
-    <!-- SIDEBAR -->
-    <aside id="sidebar" class="bg-dark text-white">
-      <div class="sidebar-header p-3 text-center border-bottom border-secondary">
-        <h4 class="fw-bold mb-0">SPK ANP Admin</h4>
+  <div class="admin-wrapper">
+
+    <aside id="sidebar">
+      <div class="sidebar-header">
+        <h4>SPK Admin</h4>
+        <button id="sidebar-close-btn" onclick="toggleSidebar()">
+            <i class="bi bi-x-lg"></i>
+        </button>
       </div>
 
       <ul class="nav flex-column p-3">
-
-        <!-- Dashboard -->
         <li class="nav-item mb-2">
-          <a href="{{ url_for('admin_home') }}"
-             class="nav-link text-white {% if request.path == '/admin/home' %}active{% endif %}">
+          <a href="{{ url_for('admin_home') }}" class="nav-link {% if request.path == '/admin/home' %}active{% endif %}">
             <i class="bi bi-house-door-fill"></i> Dashboard
           </a>
         </li>
-
-        <!-- Log Sistem -->
         <li class="nav-item mb-2">
-          <a href="{{ url_for('admin_logs') }}" class="nav-link text-white">
+          <a href="{{ url_for('admin_logs') }}" class="nav-link">
             <i class="bi bi-file-text-fill"></i> Log Sistem
           </a>
         </li>
-
-        <!-- Kelola Kriteria -->
         <li class="nav-item mb-2">
-          <a href="{{ url_for('admin_kriteria') }}" class="nav-link text-white">
+          <a href="{{ url_for('admin_kriteria') }}" class="nav-link">
             <i class="bi bi-sliders"></i> Kelola Kriteria
           </a>
         </li>
@@ -55,83 +47,93 @@
       </div>
     </aside>
 
-    <!-- PAGE BODY -->
-    <main id="page-body" class="flex-grow-1 p-4">
-      <div class="container-fluid">
+    <main id="page-body">
+      
+      <div class="d-lg-none d-flex justify-content-between align-items-center mb-4 pb-3 border-bottom">
+          <h4 class="m-0 fw-bold text-primary">Dashboard</h4>
+          <button class="btn btn-primary" onclick="toggleSidebar()">
+              <i class="bi bi-list fs-4"></i>
+          </button>
+      </div>
 
-        <!-- HEADER -->
-        <h2 class="fw-bold mb-4 text-primary">👨‍💼 Dashboard Admin</h2>
-        <p class="text-muted mb-4">Selamat datang, <b>{{ name }}</b>!</p>
+      <div class="container-fluid p-0">
 
-        <!-- STATISTIK -->
-        <div class="row mb-4">
-          <div class="col-md-4">
-            <div class="card text-center shadow-sm border-0">
-              <div class="card-body">
+        <div class="d-none d-lg-block mb-4">
+            <h2 class="fw-bold text-primary">👨‍💼 Dashboard Admin</h2>
+            <p class="text-muted">Selamat datang, <b>{{ name }}</b>!</p>
+        </div>
+
+        <div class="row g-3 mb-4">
+          <div class="col-12 col-md-4">
+            <div class="card shadow-sm border-0 h-100">
+              <div class="card-body text-center">
                 <h5 class="fw-bold text-secondary">Total Pengguna</h5>
                 <h3 class="text-primary fw-bold">{{ users|length }}</h3>
               </div>
             </div>
           </div>
-
-          <div class="col-md-4">
-            <div class="card text-center shadow-sm border-0">
-              <div class="card-body">
-                <h5 class="fw-bold text-secondary">Riwayat Analisis</h5>
+          <div class="col-6 col-md-4">
+            <div class="card shadow-sm border-0 h-100">
+              <div class="card-body text-center">
+                <h5 class="fw-bold text-secondary">Riwayat</h5>
                 <h3 class="text-success fw-bold">12</h3>
               </div>
             </div>
           </div>
-
-          <div class="col-md-4">
-            <div class="card text-center shadow-sm border-0">
-              <div class="card-body">
-                <h5 class="fw-bold text-secondary">Total Transaksi</h5>
+          <div class="col-6 col-md-4">
+            <div class="card shadow-sm border-0 h-100">
+              <div class="card-body text-center">
+                <h5 class="fw-bold text-secondary">Transaksi</h5>
                 <h3 class="text-warning fw-bold">8</h3>
               </div>
             </div>
           </div>
         </div>
 
-        <!-- DAFTAR USER -->
         <div class="card shadow-sm">
           <div class="card-header bg-primary text-white fw-bold">
             Daftar Pengguna Terdaftar
           </div>
-
-          <div class="card-body">
-            <table class="table table-striped table-bordered align-middle">
-              <thead class="table-primary">
-                <tr>
-                  <th>No</th>
-                  <th>Nama</th>
-                  <th>Email</th>
-                  <th>Role</th>
-                </tr>
-              </thead>
-
-              <tbody>
-                {% for u in users %}
-                <tr>
-                  <td>{{ loop.index }}</td>
-                  <td>{{ u.name }}</td>
-                  <td>{{ u.email }}</td>
-                  <td>{{ u.role }}</td>
-                </tr>
-                {% else %}
-                <tr>
-                  <td colspan="4" class="text-center text-muted">Belum ada user terdaftar.</td>
-                </tr>
-                {% endfor %}
-              </tbody>
-
-            </table>
+          <div class="card-body p-0">
+            <div class="table-responsive">
+                <table class="table table-striped table-bordered align-middle mb-0 text-nowrap">
+                  <thead class="table-primary">
+                    <tr>
+                      <th>No</th>
+                      <th>Nama</th>
+                      <th>Email</th>
+                      <th>Role</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {% for u in users %}
+                    <tr>
+                      <td>{{ loop.index }}</td>
+                      <td>{{ u.name }}</td>
+                      <td>{{ u.email }}</td>
+                      <td>{{ u.role }}</td>
+                    </tr>
+                    {% else %}
+                    <tr>
+                      <td colspan="4" class="text-center text-muted">Belum ada user.</td>
+                    </tr>
+                    {% endfor %}
+                  </tbody>
+                </table>
+            </div>
           </div>
         </div>
 
       </div>
     </main>
-
   </div>
+
+  <script>
+      function toggleSidebar() {
+          document.getElementById('sidebar').classList.toggle('active');
+          document.getElementById('mobile-overlay').classList.toggle('active');
+      }
+  </script>
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
 </body>
 </html>

@@ -1,26 +1,27 @@
 /* =====================================================
-   🌐 STYLING DASAR ADMIN DASHBOARD SPK ANP
+   🌐 STYLING KHUSUS ADMIN (TIDAK AKAN BENTROK KE USER)
    ===================================================== */
 
-/* Reset dasar */
+/* 1. Reset Dasar Khusus Admin */
 body.page-admin {
   font-family: "Poppins", sans-serif;
   background-color: #f8fafc;
   color: #212529;
   margin: 0;
   padding: 0;
-  overflow-x: hidden;
+  overflow-x: hidden; /* Mencegah scroll horizontal */
 }
 
-/* Wrapper utama */
+/* 2. Wrapper Utama */
 .admin-wrapper {
   min-height: 100vh;
   display: flex;
   flex-direction: row;
+  position: relative;
 }
 
 /* =====================================================
-   🧭 SIDEBAR ADMIN
+   🧭 SIDEBAR (LOGIKA DESKTOP DEFAULT)
    ===================================================== */
 
 #sidebar {
@@ -29,160 +30,129 @@ body.page-admin {
   color: white;
   display: flex;
   flex-direction: column;
-  position: fixed;
+  position: fixed; /* Sidebar diam di tempat */
   top: 0;
   left: 0;
   bottom: 0;
-  z-index: 100;
-  transition: all 0.3s ease;
+  z-index: 1050; /* Di atas konten */
+  transition: all 0.3s ease-in-out; /* Animasi halus */
+  box-shadow: 4px 0 10px rgba(0,0,0,0.1);
 }
 
+/* Header Sidebar */
 #sidebar .sidebar-header {
-  background-color: rgba(255, 255, 255, 0.1);
-  padding: 1rem;
+  padding: 1.5rem 1rem;
+  background: rgba(255,255,255,0.05);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
 }
 
 #sidebar h4 {
-  font-size: 1.3rem;
-  font-weight: 600;
-  color: #ffffff;
+  font-size: 1.2rem;
+  font-weight: 700;
+  margin: 0;
+  color: #fff;
 }
 
-/* Navigation */
-#sidebar .nav {
-  flex-grow: 1;
+/* Tombol Close (Hanya muncul di Mobile nanti) */
+#sidebar-close-btn {
+    display: none;
+    background: none;
+    border: none;
+    color: white;
+    font-size: 1.2rem;
 }
 
+/* Menu Links */
 #sidebar .nav-link {
-  color: #e4e8ef;
+  color: #adb5bd;
+  padding: 12px 20px;
   font-weight: 500;
-  padding: 10px 15px;
-  border-radius: 5px;
-  transition: all 0.2s ease-in-out;
+  display: flex;
+  align-items: center;
+  border-left: 3px solid transparent; /* Garis indikator aktif */
 }
 
+#sidebar .nav-link i {
+    margin-right: 12px;
+    font-size: 1.1rem;
+    width: 20px;
+    text-align: center;
+}
+
+/* Efek Hover & Active */
 #sidebar .nav-link:hover,
 #sidebar .nav-link.active {
-  background-color: rgba(255, 255, 255, 0.15);
-  color: #ffffff;
-}
-
-/* Tombol logout */
-#sidebar .btn-outline-light {
-  border-color: rgba(255, 255, 255, 0.6);
-  color: #ffffff;
-  font-weight: 500;
-}
-
-#sidebar .btn-outline-light:hover {
-  background-color: #ffffff;
-  color: #0d6efd;
+  color: #fff;
+  background: rgba(255,255,255,0.1);
+  border-left-color: #0d6efd; /* Garis biru saat aktif */
 }
 
 /* =====================================================
-   📄 PAGE BODY (KONTEN)
+   📄 KONTEN UTAMA (#page-body)
    ===================================================== */
 
 #page-body {
-  margin-left: 250px; /* sesuaikan lebar sidebar */
+  margin-left: 250px; /* Geser konten ke kanan sebesar lebar sidebar */
   padding: 2rem;
   flex-grow: 1;
-  transition: all 0.3s ease;
+  transition: all 0.3s ease-in-out;
+  width: 100%;
 }
 
-/* Header utama */
-#page-body h2 {
-  font-weight: 700;
-  color: #0d6efd;
-  margin-bottom: 0.5rem;
-}
-
-#page-body p {
-  font-size: 0.95rem;
-  color: #6c757d;
-}
-
-/* Kartu statistik */
+/* Card Styling agar konsisten */
 .card {
-  border-radius: 10px;
-  transition: transform 0.2s ease, box-shadow 0.2s ease;
+    border-radius: 10px;
+    border: none;
 }
 
-.card:hover {
-  transform: translateY(-3px);
-  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.08);
-}
-
-.card h5 {
-  font-size: 1rem;
-  margin-bottom: 0.5rem;
-}
-
-.card h3 {
-  font-size: 2rem;
-}
-
-/* Tabel pengguna */
-.table {
-  border-radius: 8px;
-  overflow: hidden;
-  background: white;
-}
-
+/* Table Styling */
 .table th {
-  background-color: #0d6efd;
-  color: white;
-  font-weight: 600;
-  text-align: center;
-}
-
-.table td {
-  text-align: center;
-  vertical-align: middle;
+    background-color: #e9ecef;
+    color: #495057;
 }
 
 /* =====================================================
-   📱 RESPONSIVE MODE
+   📱 RESPONSIVE MODE (MOBILE / TABLET)
    ===================================================== */
 
-@media (max-width: 992px) {
-  #sidebar {
-    width: 200px;
-  }
-
-  #page-body {
-    margin-left: 200px;
-  }
+/* Overlay Gelap saat menu terbuka */
+#mobile-overlay {
+    display: none;
+    position: fixed;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background: rgba(0,0,0,0.5);
+    z-index: 1040;
+    backdrop-filter: blur(2px);
+    transition: opacity 0.3s;
 }
 
-@media (max-width: 768px) {
+@media (max-width: 991.98px) {
+  /* 1. Sembunyikan Sidebar ke Kiri Layar */
   #sidebar {
-    position: absolute;
-    width: 100%;
-    height: auto;
-    z-index: 999;
+    left: -260px; 
   }
 
+  /* 2. Munculkan Sidebar jika ada class 'active' (via Javascript) */
+  #sidebar.active {
+    left: 0;
+  }
+
+  /* 3. Munculkan tombol close di dalam sidebar */
+  #sidebar-close-btn {
+      display: block;
+      cursor: pointer;
+  }
+
+  /* 4. Reset Margin Konten (Full Width) */
   #page-body {
     margin-left: 0;
-    padding: 1.5rem;
+    padding: 1rem;
   }
-}
 
-/* =====================================================
-   🧩 TAMBAHAN (ANIMASI & SCROLL)
-   ===================================================== */
-
-#sidebar::-webkit-scrollbar {
-  width: 6px;
-}
-
-#sidebar::-webkit-scrollbar-thumb {
-  background-color: rgba(255, 255, 255, 0.3);
-  border-radius: 3px;
-}
-
-a.nav-link i {
-  margin-right: 8px;
-  font-size: 1.1rem;
+  /* 5. Aktifkan Overlay */
+  #mobile-overlay.active {
+      display: block;
+  }
 }
