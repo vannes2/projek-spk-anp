@@ -8,6 +8,7 @@ import json
 import os
 import re
 import io
+import math
 from xhtml2pdf import pisa
 from functools import wraps
 from flask import abort
@@ -51,8 +52,10 @@ class Sale(db.Model):
     user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
     item_name = db.Column(db.String(100), nullable=False)
     quantity = db.Column(db.Integer, nullable=False)
-    price = db.Column(db.Float, nullable=False)
-    profit = db.Column(db.Float, nullable=False)
+    modal = db.Column(db.Float, nullable=False, default=0) 
+    price = db.Column(db.Float, nullable=False) 
+    profit = db.Column(db.Float, nullable=False) 
+    date_added = db.Column(db.DateTime, default=datetime.utcnow)
 
 class AnalysisHistory(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -548,21 +551,47 @@ def view_history_detail(id):
 @app.route("/finance", methods=["GET", "POST"])
 def finance():
     if "user_id" not in session: return redirect(url_for("login"))
+
     if request.method == "POST":
-        item_name = request.form.get("item_name")
-        quantity = int(request.form.get("quantity"))
-        price = float(request.form.get("price"))
-        profit = float(request.form.get("profit"))
-        
-        new_sale = Sale(user_id=session["user_id"], item_name=item_name, quantity=quantity, price=price, profit=profit)
-        db.session.add(new_sale)
-        db.session.commit()
-        flash("Data tersimpan!", "success")
+        try:
+            item_name = request.form.get("item_name")
+            quantity = int(request.form.get("quantity"))
+            
+            modal_satuan = float(request.form.get("modal")) 
+            harga_jual_satuan = float(request.form.get("price"))
+            
+            untung_per_unit = harga_jual_satuan - modal_satuan
+            
+            total_profit_transaksi = untung_per_unit * quantity
+
+            new_sale = Sale(
+                user_id=session["user_id"], 
+                item_name=item_name, 
+                quantity=quantity, 
+                modal=modal_satuan,          
+                price=harga_jual_satuan,       
+                profit=total_profit_transaksi  
+            )
+            db.session.add(new_sale)
+            db.session.commit()
+            
+            flash(f"✅ Penjualan tersimpan! Keuntungan terhitung: Rp {total_profit_transaksi:,.0f}", "success")
+        except Exception as e:
+            flash(f"❌ Gagal menyimpan: {e}", "danger")
         return redirect(url_for("finance"))
 
-    sales_data = Sale.query.filter_by(user_id=session["user_id"]).all()
+    sales_data = Sale.query.filter_by(user_id=session["user_id"]).order_by(Sale.id.desc()).all()
+    
+
     total_profit = sum(s.profit for s in sales_data)
-    return render_template("user/finance.html", name=session["user_name"], sales=sales_data, total_profit=total_profit)
+    
+    return render_template(
+        "user/finance.html", 
+        name=session["user_name"], 
+        sales=sales_data, 
+        total_profit=total_profit,
+        active_tab="keuangan" 
+    )
 
 @app.route("/finance/delete/<int:id>")
 def delete_sale(id):
@@ -632,70 +661,76 @@ def download_finance_pdf():
 
 @app.route("/finance/simulation", methods=["POST"])
 def finance_simulation():
-    if "user_id" not in session:
-        return redirect(url_for("login"))
+    if "user_id" not in session: return redirect(url_for("login"))
 
-    biaya_sewa = float(request.form.get("biaya_sewa", 0))
+    try:
+        biaya_sewa = float(request.form.get("biaya_sewa", 0))
+    except:
+        biaya_sewa = 0
+
     hasil_list = []
     detail_porsi = []
-    total_profit = 0
-    total_items = 0
-
-
+    
+    # Simpan input user biar gak hilang (re-fill form)
     form_data = {"biaya_sewa": biaya_sewa, "menu": []}
 
     for i in range(1, 6):
         nama = request.form.get(f"nama_{i}")
-        harga = request.form.get(f"harga_{i}")
-        modal = request.form.get(f"modal_{i}")
+        
+        # Jika nama diisi, proses baris ini
+        if nama:
+            try:
+                harga = float(request.form.get(f"harga_{i}", 0))
+                modal = float(request.form.get(f"modal_{i}", 0))
+                
+                # Masukkan ke form_data buat ditampilkan lagi di input
+                form_data["menu"].append({"nama": nama, "harga": harga, "modal": modal})
 
-        if nama or harga or modal:
-            form_data["menu"].append({
-                "nama": nama or "",
-                "harga": harga or "",
-                "modal": modal or "",
-            })
+                # LOGIKA HITUNG
+                untung = harga - modal
+                
+                if untung <= 0:
+                    rekomendasi = "Rugi/Nihil" # Jika harga jual < modal
+                else:
+                    # Rumus BEP: Sewa / Untung per porsi (Dibulatkan ke atas)
+                    porsi = math.ceil(biaya_sewa / untung)
+                    rekomendasi = porsi # Kita simpan angkanya saja
+                    
+                    # Tambah ke summary kalimat
+                    if porsi > 0:
+                        detail_porsi.append(f"{porsi:,} porsi {nama}")
 
-        if nama and harga and modal:
-            harga = float(harga)
-            modal = float(modal)
-            untung = harga - modal
-            if untung <= 0:
-                rekomendasi = f"Harga terlalu rendah! Naikkan minimal ke Rp {modal + 1000:,.0f}"
-                porsi_perlu = 0
-            else:
-                porsi_perlu = biaya_sewa / untung
-                rekomendasi = f"Perlu jual ±{porsi_perlu:.0f} porsi untuk tutup sewa."
+                hasil_list.append({
+                    "nama": nama,
+                    "harga": harga,
+                    "modal": modal,
+                    "untung": untung,         # HTML butuh variabel ini
+                    "rekomendasi": rekomendasi # HTML butuh variabel ini
+                })
+            except ValueError:
+                continue
 
-            hasil_list.append({
-                "nama": nama,
-                "harga": harga,
-                "modal": modal,
-                "untung": untung,
-                "rekomendasi": rekomendasi,
-                "porsi_perlu": porsi_perlu
-            })
-            if porsi_perlu > 0:
-                detail_porsi.append(f"{int(porsi_perlu):,} porsi {nama}")
-            total_profit += untung
-            total_items += 1
-
- 
-    if detail_porsi:
-        summary = f"Untuk menutup biaya sewa Rp {biaya_sewa:,.0f} harus menjual " + \
-                  " dan ".join(detail_porsi) + "."
+    # Buat kalimat kesimpulan
+    if detail_porsi and biaya_sewa > 0:
+        summary = f"Untuk menutup biaya operasional Rp {biaya_sewa:,.0f}, Anda harus menjual (salah satu opsi): " + " ATAU ".join(detail_porsi) + "."
+    elif biaya_sewa == 0:
+        summary = "Biaya operasional 0, Anda sudah untung sejak penjualan pertama."
     else:
-        summary = "Tidak ada data makanan valid untuk simulasi."
+        summary = "Silakan input data biaya dan menu yang valid."
+
+    # Ambil data tabel bawah (Buku Kas) biar gak hilang saat reload
+    sales_data = Sale.query.filter_by(user_id=session["user_id"]).all()
+    total_profit = sum(s.profit for s in sales_data)
 
     return render_template(
         "user/finance.html",
         name=session["user_name"],
-        sales=Sale.query.filter_by(user_id=session["user_id"]).all(),
-        total_profit=sum(s.profit for s in Sale.query.filter_by(user_id=session["user_id"]).all()),
-        active_tab="simulasi",
+        sales=sales_data,
+        total_profit=total_profit,
+        active_tab="simulasi", # Agar tab simulasi tetap terbuka
         hasil_simulasi=hasil_list,
         summary=summary,
-        form_data=form_data,  
+        form_data=form_data
     )
     
 @app.route("/finance/clear", methods=["GET"])

@@ -234,33 +234,41 @@
     <div class="modal-dialog modal-dialog-centered">
         <div class="modal-content border-0 shadow">
             <div class="modal-header bg-success text-white">
-                <h5 class="modal-title fw-bold">Tambah Catatan</h5>
+                <h5 class="modal-title fw-bold">Tambah Penjualan</h5>
                 <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
             </div>
             <form action="{{ url_for('finance') }}" method="POST">
                 <div class="modal-body">
                     <div class="mb-3">
-                        <label class="fw-bold small text-muted">Nama Makanan</label>
-                        <input type="text" name="item_name" class="form-control form-control-lg" placeholder="Contoh: Ayam Bakar" required>
+                        <label class="fw-bold small text-muted">Nama Barang/Menu</label>
+                        <input type="text" name="item_name" class="form-control" placeholder="Contoh: Ayam Geprek" required>
                     </div>
+
+                    <div class="mb-3">
+                        <label class="fw-bold small text-muted">Jumlah (Qty)</label>
+                        <input type="number" name="quantity" class="form-control" placeholder="Contoh: 2" min="1" required>
+                    </div>
+
                     <div class="row g-2">
                         <div class="col-6 mb-3">
-                            <label class="fw-bold small text-muted">Qty</label>
-                            <input type="number" name="quantity" class="form-control" placeholder="0" required>
+                            <label class="fw-bold small text-muted">Modal (Per Satuan)</label>
+                            <input type="number" name="modal" class="form-control" placeholder="Rp 10.000" required>
                         </div>
+                        
                         <div class="col-6 mb-3">
-                            <label class="fw-bold small text-muted">Harga Satuan</label>
-                            <input type="number" name="price" class="form-control" placeholder="Rp" required>
+                            <label class="fw-bold small text-muted">Harga Jual (Per Satuan)</label>
+                            <input type="number" name="price" class="form-control" placeholder="Rp 30.000" required>
                         </div>
                     </div>
-                    <div class="mb-2">
-                        <label class="fw-bold small text-muted">Total Keuntungan Bersih</label>
-                        <input type="number" name="profit" class="form-control form-control-lg border-success text-success fw-bold" placeholder="Rp" required>
+
+                    <div class="alert alert-light border small text-muted">
+                        <i class="fas fa-info-circle me-1"></i> Keuntungan akan dihitung otomatis: <br>
+                        <b>(Harga Jual - Modal) x Qty</b>
                     </div>
                 </div>
                 <div class="modal-footer bg-light">
-                    <button type="button" class="btn btn-link text-muted text-decoration-none" data-bs-dismiss="modal">Batal</button>
-                    <button type="submit" class="btn btn-success px-4 shadow-sm">Simpan Data</button>
+                    <button type="button" class="btn btn-link text-muted" data-bs-dismiss="modal">Batal</button>
+                    <button type="submit" class="btn btn-success px-4 shadow-sm">Simpan & Hitung</button>
                 </div>
             </form>
         </div>
