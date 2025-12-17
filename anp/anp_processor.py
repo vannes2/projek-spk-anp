@@ -1,10 +1,11 @@
 import os
 import numpy as np
 import pandas as pd
+import json
+import re
 import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
-import re
 
 # ======================================================
 #  KONFIGURASI & FOLDER
@@ -17,57 +18,69 @@ os.makedirs(CHART_DIR, exist_ok=True)
 # 1. HELPER: KONVERSI & PARSING (SMART REGEX)
 # ======================================================
 def extract_number_and_convert(value_str):
+    """Mengubah string '1.5 Juta', '10 ribu', 'Rp 50.000' menjadi float murni."""
     v = str(value_str).lower().replace(",", "").replace(".", "")
-    # Ambil angka (handle range misal 10-15 -> 12.5)
+    
+    # Ambil angka
     numbers = [float(s) for s in re.findall(r'\d+', v)]
     if not numbers: return 0
     base_val = sum(numbers) / len(numbers)
     
-    # FAKTOR PENGALI (SATUAN)
+    # FAKTOR PENGALI
     multiplier = 1
     if "juta" in v: multiplier = 1000000
     elif "ribu" in v or "rb" in v: multiplier = 1000
-    
-    # SATUAN MAKANAN (KUNCI PERBANDINGAN ADIL)
-    elif "ekor" in v: multiplier = 4        # 1 Ekor Ayam ~ 4 Porsi
-    elif "biji" in v or "tusuk" in v: multiplier = 0.2  # 5 Tusuk ~ 1 Porsi
+    elif "ekor" in v: multiplier = 4        
+    elif "biji" in v or "tusuk" in v: multiplier = 0.2  
     
     return base_val * multiplier
 
-def translate_value(column_name, value):
+def normalize_numeric_column(series, is_cost=False):
+    """
+    Dynamic Min-Max Scaling.
+    Mengubah angka berapapun (ribuan s/d miliaran) menjadi skor 1-5.
+    """
+    # 1. Konversi ke angka murni
+    clean_data = series.apply(extract_number_and_convert)
+    
+    
+    min_val = clean_data.min()
+    max_val = clean_data.max()
+    
+    # Jika data seragam (min == max), kasih skor tengah
+    if min_val == max_val:
+        return pd.Series([3.0] * len(series))
+    
+    # 2. Rumus Normalisasi 1-5
+    scores = 1 + ((clean_data - min_val) * 4 / (max_val - min_val))
+    
+    # 3. Jika COST (Biaya), balik nilainya (Makin mahal makin kecil skornya)
+    if is_cost:
+        scores = 6 - scores
+        
+    return scores
+
+def translate_categorical_value(column_name, value):
+    """
+    Validasi KETAT untuk kolom teks (C3, C4, C5).
+    Jika input tidak dikenal -> ERROR (Raise ValueError).
+    """
     v_orig = str(value).strip()
     v = v_orig.lower()
     col = column_name.lower()
-    
-    num_val = extract_number_and_convert(v_orig) 
-    score = 1 
+    score = None 
 
-    # --- C1: BIAYA SEWA (COST) ---
-    if "c1" in col or "sewa" in col:
-        if num_val == 0: score = 1
-        elif num_val <= 900000: score = 5
-        elif num_val <= 1500000: score = 4
-        elif num_val <= 2500000: score = 3
-        elif num_val <= 4500000: score = 2
-        else: score = 1
-
-    # --- C2: PENJUALAN (BENEFIT) ---
-    elif "c2" in col or "jual" in col:
-        if num_val >= 100: score = 5
-        elif num_val >= 60: score = 4
-        elif num_val >= 30: score = 3
-        elif num_val >= 15: score = 2
-        else: score = 1
-
-    # --- C3: BAHAN (BENEFIT) ---
-    elif "c3" in col or "bahan" in col:
+    # --- C3: BAHAN ---
+    if "c3" in col or "bahan" in col:
         if "sangat" in v: score = 5
         elif "cukup" in v: score = 4
         elif "agak sulit" in v: score = 2
         elif "sulit" in v: score = 1
-        else: score = 5 # Default
+        else: 
+            # STRICT MODE: Tidak ada else score=5
+            raise ValueError(f"Isi kolom C3 '{v_orig}' tidak valid. Gunakan: Sangat Mudah, Cukup, Sulit.")
 
-    # --- C4: FASILITAS (BENEFIT) ---
+    # --- C4: FASILITAS ---
     elif "c4" in col or "fasil" in col:
         if "tidak ada" in v or v == "-" or v == "": item_count = 0
         else: item_count = v.count(",") + 1
@@ -77,75 +90,60 @@ def translate_value(column_name, value):
         elif item_count == 3: score = 4
         elif item_count == 2: score = 3
         elif item_count == 1: score = 2
-        else: score = 1
+        else: score = 1 # C4 aman default 1 (basis jumlah koma)
 
-    # --- C5: PERSAINGAN (COST -> DIBALIK JADI BENEFIT) ---
+    # --- C5: PERSAINGAN ---
     elif "c5" in col or "saing" in col:
         if "belum ada" in v: score = 5
         elif "tidak" in v: score = 4
         elif "cukup" in v: score = 3
         elif "sangat" in v: score = 2
         elif "ketat" in v: score = 1
-        else: score = 2
-
-    # Safety Check: Jika input Excel sudah angka 1-5
-    try:
-        if 1 <= float(value) <= 5:
-            if float(value) <= 5: score = float(value)
-    except:
-        pass
+        else: 
+            # STRICT MODE: Tidak ada else score=2
+            raise ValueError(f"Isi kolom C5 '{v_orig}' tidak valid. Gunakan: Ketat, Biasa, Tidak Ada.")
+    
+    # Cek jika user input angka manual 1-5
+    if score is None:
+        try:
+            val_float = float(value)
+            if 1 <= val_float <= 5: score = val_float
+            else: raise ValueError
+        except:
+            raise ValueError(f"Data '{v_orig}' pada kolom {column_name} tidak dikenali.")
 
     return score
 
 # ======================================================
-# 2. ANP ENGINE (CORE LOGIC)
+# 2. ANP ENGINE (CORE)
 # ======================================================
-
 def get_saaty_scale(diff_score):
     mapping = {0: 1, 1: 3, 2: 5, 3: 7, 4: 9}
-    return mapping.get(int(abs(diff_score)), 9)
+    return mapping.get(int(round(abs(diff_score))), 9)
 
 def get_ri_value(n):
-    """
-    Kamus Random Index (RI) Saaty.
-    Mengambil nilai RI secara otomatis berdasarkan jumlah data (n).
-    """
-    ri_dict = {
-        1: 0.0, 2: 0.0, 3: 0.58, 4: 0.90, 5: 1.12,
-        6: 1.24, 7: 1.32, 8: 1.41, 9: 1.45, 10: 1.49,
-        11: 1.51, 12: 1.48, 13: 1.56, 14: 1.57, 15: 1.59
-    }
-    # Jika n > 15, gunakan nilai estimasi 1.59
-    return ri_dict.get(n, 1.59)
+    ri_dict = {1: 0.0, 2: 0.0, 3: 0.58, 4: 0.90, 5: 1.12, 6: 1.24, 7: 1.32, 8: 1.41}
+    return ri_dict.get(n, 1.45)
 
 def calculate_priority_vector(matrix):
-    """
-    Menghitung Bobot (Eigenvector), CI, dan CR dari matriks.
-    """
     n = matrix.shape[0]
     col_sum = np.sum(matrix, axis=0)
+    # Hindari pembagian nol
+    col_sum[col_sum == 0] = 1 
     
-    # Normalisasi & Rata-rata Baris
     norm_matrix = matrix / col_sum
     weights = np.mean(norm_matrix, axis=1)
     
-    # Hitung Konsistensi (Lambda Max, CI, CR)
     lam_max = np.dot(col_sum, weights)
-    
     if n > 1:
         CI = (lam_max - n) / (n - 1)
-        RI = get_ri_value(n) # Panggil fungsi dinamis RI
+        RI = get_ri_value(n)
         CR = CI / RI if RI != 0 else 0
     else:
-        CI = 0
-        CR = 0
-        
+        CI, CR = 0, 0
     return weights, CI, CR
 
 def analyze_alternatives_pairwise(scores):
-    """
-    Membuat matriks perbandingan alternatif secara dinamis berdasarkan data.
-    """
     n = len(scores)
     matrix = np.ones((n, n), dtype=float)
     for i in range(n):
@@ -154,97 +152,91 @@ def analyze_alternatives_pairwise(scores):
             diff = scores[i] - scores[j]
             s_val = get_saaty_scale(diff)
             matrix[i, j] = s_val if diff > 0 else (1 / s_val if diff < 0 else 1)
-
     return calculate_priority_vector(matrix)
 
 # ======================================================
-# 3. SUPERMATRIX CALCULATION (FULL DYNAMIC LIMIT MATRIX)
+# 3. SUPERMATRIX (DENGAN CONFIG ADMIN)
 # ======================================================
-
 def get_criteria_limit_matrix_weights():
-    """
-    Menghitung Bobot Akhir Kriteria menggunakan LIMIT SUPERMATRIX.
-    Algoritma ini mensimulasikan perhitungan ANP Network Bab 3
-    secara real-time menggunakan matriks dan pemangkatan.
-    """
-    
-    # --- A. MATRIKS UTAMA (CRITERIA COMPARISON) ---
-    # Sumber: Bab 3 (Matriks Saaty untuk Kriteria)
+    # 1. Default Hardcoded (Backup)
     main_matrix = np.array([
-        [1,   1/7, 3,   1/5, 1/3], # C1
-        [7,   1,   9,   3,   5  ], # C2
-        [1/3, 1/9, 1,   1/7, 1/5], # C3
-        [5,   1/3, 7,   1,   3  ], # C4
-        [3,   1/5, 5,   1/3, 1  ]  # C5
+        [1,   1/7, 3,   1/5, 1/3], 
+        [7,   1,   9,   3,   5  ], 
+        [1/3, 1/9, 1,   1/7, 1/5], 
+        [5,   1/3, 7,   1,   3  ], 
+        [3,   1/5, 5,   1/3, 1  ]  
     ])
-    w_main, ci_main, cr_main = calculate_priority_vector(main_matrix)
 
-    # --- B. INNER DEPENDENCE (KETERGANTUNGAN DALAM) ---
-    # Di Bab 3: C2 (Penjualan) dipengaruhi oleh C3, C4, C5
-    # Matriks Perbandingan: Mana yang lebih mempengaruhi C2?
-    dep_c2_matrix = np.array([
-        [1,   1/5, 1/3], # C3
-        [5,   1,   3  ], # C4
-        [3,   1/3, 1  ]  # C5
-    ])
+    # 2. Cek Config Admin
+    config_path = os.path.join(BASE_DIR, "anp_config.json")
+    if os.path.exists(config_path):
+        try:
+            with open(config_path, "r") as f:
+                config = json.load(f)
+            
+            keys = ["C1", "C2", "C3", "C4", "C5"]
+            new_matrix = np.eye(5)
+            
+            for i in range(5):
+                for j in range(5):
+                    if i == j: continue
+                    key_pair = f"{keys[i]}_{keys[j]}"
+                    if key_pair in config:
+                        val = float(config[key_pair])
+                        new_matrix[i, j] = val
+                    else:
+                        key_rev = f"{keys[j]}_{keys[i]}"
+                        if key_rev in config:
+                            val = float(config[key_rev])
+                            new_matrix[i, j] = 1 / val if val != 0 else 1
+            main_matrix = new_matrix
+            print(">>> ANP: Memakai Bobot Admin.")
+        except Exception as e:
+            print(f"Error load config: {e}")
+
+    # 3. Hitung Bobot
+    w_main, ci_main, cr_main = calculate_priority_vector(main_matrix)
+    
+    # Inner Dependence (Default)
+    dep_c2_matrix = np.array([[1, 1/5, 1/3], [5, 1, 3], [3, 1/3, 1]])
     w_dep_c2, _, _ = calculate_priority_vector(dep_c2_matrix)
-    # Mapping hasil w_dep_c2: index 0->C3, 1->C4, 2->C5
-    
-    # --- C. KONSTRUKSI UNWEIGHTED SUPERMATRIX ---
+
+    # Supermatrix
     supermatrix = np.zeros((5, 5))
-    
-    # Isi Supermatrix (Kolom = Yang Mempengaruhi, Baris = Yang Dipengaruhi)
-    # Default: Ambil dari Bobot Utama (w_main)
     for i in range(5):
-        supermatrix[i, 0] = w_main[i] # Col C1
-        supermatrix[i, 2] = w_main[i] # Col C3
-        supermatrix[i, 3] = w_main[i] # Col C4
-        supermatrix[i, 4] = w_main[i] # Col C5
-        
-    # Terapkan Inner Dependence pada Kolom C2
-    supermatrix[0, 1] = 0.0 # C1
-    supermatrix[1, 1] = 0.0 # C2 (Self)
-    supermatrix[2, 1] = w_dep_c2[0] # C3
-    supermatrix[3, 1] = w_dep_c2[1] # C4
-    supermatrix[4, 1] = w_dep_c2[2] # C5
+        supermatrix[i, 0] = w_main[i]
+        supermatrix[i, 2] = w_main[i]
+        supermatrix[i, 3] = w_main[i]
+        supermatrix[i, 4] = w_main[i]
     
-    # --- D. PERHITUNGAN LIMIT SUPERMATRIX (M^∞) ---
-    # Kita pangkatkan matriks berulang kali sampai stabil
-    limit_matrix = np.linalg.matrix_power(supermatrix, 100) # Pangkat 100
-    
-    # Ambil bobot akhir dari salah satu kolom
-    final_weights_array = limit_matrix[:, 0]
-    
-    # Normalisasi akhir (untuk memastikan jumlah = 1)
-    final_weights_array = final_weights_array / np.sum(final_weights_array)
-    
-    # Mapping ke Dictionary
+    supermatrix[0, 1] = 0.0
+    supermatrix[1, 1] = 0.0
+    supermatrix[2, 1] = w_dep_c2[0]
+    supermatrix[3, 1] = w_dep_c2[1]
+    supermatrix[4, 1] = w_dep_c2[2]
+
+    limit_matrix = np.linalg.matrix_power(supermatrix, 100)
+    final_weights_array = limit_matrix[:, 0] / np.sum(limit_matrix[:, 0])
+
     final_anp_weights = {
-        "C1": final_weights_array[0],
-        "C2": final_weights_array[1],
-        "C3": final_weights_array[2],
-        "C4": final_weights_array[3],
-        "C5": final_weights_array[4]
+        "C1": final_weights_array[0], "C2": final_weights_array[1],
+        "C3": final_weights_array[2], "C4": final_weights_array[3], "C5": final_weights_array[4]
     }
     
-    # Kembalikan laporan konsistensi (agar Frontend tetap tampil keren)
     consistency_report = {
-        "CR_Criteria_Matrix": cr_main,
-        "CI_Criteria_Matrix": ci_main,
+        "CR_Criteria_Matrix": cr_main, "CI_Criteria_Matrix": ci_main,
         "Status": "Valid" if cr_main < 0.1 else "Konsistensi Rendah"
     }
-    
     return final_anp_weights, consistency_report
 
 # ======================================================
-# 4. FUNGSI UTAMA (MAIN PROCESS)
+# 4. FUNGSI UTAMA (MAIN)
 # ======================================================
 def run_anp_analysis(df):
-    print(">>> Memulai ANP Processor (Full Dynamic Limit Matrix)...")
-    
+    print(">>> Memulai ANP Processor (Final Version)...")
     df = df.dropna(how="all")
-    
-    # 1. Deteksi Kolom
+
+    # 1. Cek Kolom
     criteria_map = {
         "C1": [c for c in df.columns if "C1" in c.upper() or "SEWA" in c.upper()],
         "C2": [c for c in df.columns if "C2" in c.upper() or "JUAL" in c.upper()],
@@ -252,55 +244,53 @@ def run_anp_analysis(df):
         "C4": [c for c in df.columns if "C4" in c.upper() or "FASIL" in c.upper()],
         "C5": [c for c in df.columns if "C5" in c.upper() or "SAING" in c.upper()]
     }
-    
-    criteria_cols = []
-    for key, found in criteria_map.items():
-        if found: criteria_cols.append(found[0])
-    
-    if len(criteria_cols) < 5:
-        return {"error": "Kolom C1-C5 tidak lengkap. Cek header Excel."}
+    for k, v in criteria_map.items():
+        if not v: return {"error": f"Kolom {k} tidak ditemukan."}
 
-    # 2. Konversi Data
-    df_num = df.copy()
-    alt_col = df.columns[0]
+    # 2. Konversi Data (Pre-processing)
+    df_scores = pd.DataFrame()
     
-    for col in criteria_cols:
-        df_num[col] = df_num[col].apply(lambda x: float(translate_value(col, x)))
+    # C1 & C2 (Numerik Dynamic)
+    try:
+        df_scores["C1"] = normalize_numeric_column(df[criteria_map["C1"][0]], is_cost=True)
+        df_scores["C2"] = normalize_numeric_column(df[criteria_map["C2"][0]], is_cost=False)
+    except Exception as e:
+        # Lempar error ke app.py jika format salah
+        raise ValueError(f"Error Konversi Angka: {e}")
 
-    # 3. Hitung Local Priorities (Alternatif)
+    # C3, C4, C5 (Kategori Strict)
+    for cat in ["C3", "C4", "C5"]:
+        col_name = criteria_map[cat][0]
+        try:
+            df_scores[cat] = df[col_name].apply(lambda x: translate_categorical_value(col_name, x))
+        except ValueError as e:
+            # PENTING: Tangkap error per baris dan hentikan proses
+            raise ValueError(str(e))
+
+    # 3. Hitung Pairwise Alternatif
     local_priorities = {}
-    detailed_consistency = {} 
-    mapping_key = {"C1":0, "C2":1, "C3":2, "C4":3, "C5":4}
-    
-    for i, c in enumerate(criteria_cols):
-        key = list(mapping_key.keys())[i]
-        weights, ci, cr = analyze_alternatives_pairwise(df_num[c].values)
-        local_priorities[key] = weights
-        detailed_consistency[f"CR_{key}"] = cr
+    detailed_consistency = {}
+    for col in ["C1", "C2", "C3", "C4", "C5"]:
+        w, ci, cr = analyze_alternatives_pairwise(df_scores[col].values)
+        local_priorities[col] = w
+        detailed_consistency[f"CR_{col}"] = cr
 
-    # 4. Ambil Bobot Kriteria (HITUNGAN MATRIKS DINAMIS)
+    # 4. Ambil Bobot Global
     global_weights, criteria_report = get_criteria_limit_matrix_weights()
-    
-    # 5. Sintesis Akhir
-    alts = df[alt_col].tolist()
+
+    # 5. Sintesis
+    alts = df[df.columns[0]].tolist()
     final_scores = np.zeros(len(alts))
+    for code, w_val in global_weights.items():
+        final_scores += np.array(local_priorities[code]) * w_val
+
+    # 6. Result
+    result_df = pd.DataFrame({"Alternatif": alts, "Skor_Global": np.round(final_scores, 4)})
+    result_df = result_df.sort_values(by="Skor_Global", ascending=False)
     
-    for code, weight_val in global_weights.items():
-        if code in local_priorities:
-            local_w = np.array(local_priorities[code])
-            final_scores += local_w * weight_val
-
-    # 6. Hasil & Visualisasi
-    result_df = pd.DataFrame({
-        "Alternatif": alts,
-        "Skor_Global": np.round(final_scores, 4)
-    }).sort_values(by="Skor_Global", ascending=False)
-
     plt.figure(figsize=(10, 6))
-    bars = plt.barh(result_df["Alternatif"], result_df["Skor_Global"], color="#2E86C1")
-    plt.xlabel("Skor Prioritas (ANP)")
-    plt.title("Hasil Perangkingan Lokasi UMKM")
-    plt.gca().invert_yaxis() 
+    plt.barh(result_df["Alternatif"], result_df["Skor_Global"], color="#2E86C1")
+    plt.gca().invert_yaxis()
     plt.tight_layout()
     plt.savefig(os.path.join(CHART_DIR, "hasil_anp.png"))
     plt.close()
@@ -313,5 +303,6 @@ def run_anp_analysis(df):
         "chart": "static/charts/hasil_anp.png",
         "weights": global_weights,
         "consistency_report": full_report,
-        "summary": f"Rekomendasi Utama: {top3.iloc[0,0]} dengan skor {top3.iloc[0,1]}."
+        "consistency_ratio": criteria_report["CR_Criteria_Matrix"],
+        "summary": f"Rekomendasi: {top3.iloc[0,0]} ({top3.iloc[0,1]})"
     }

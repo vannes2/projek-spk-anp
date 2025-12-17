@@ -58,18 +58,21 @@
 
         <div class="d-none d-lg-block">
             <h2 class="fw-bold mb-3 text-primary">📄 Log Sistem</h2>
-            <p class="text-muted mb-4">Riwayat aktivitas sistem.</p>
+            <p class="text-muted mb-4">Riwayat aktivitas sistem dan pengguna.</p>
         </div>
 
         <div class="card shadow-sm mb-4 p-3">
           <form method="get" class="row g-3">
             <div class="col-12 col-md-4">
-              <label class="form-label">Actor</label>
-              <input type="text" name="actor" value="{{ request.args.get('actor','') }}"
-                     class="form-control" placeholder="contoh: user:8">
+              <label class="form-label fw-bold small text-muted">Cari Actor (ID User)</label>
+              <div class="input-group">
+                  <span class="input-group-text bg-light"><i class="bi bi-search"></i></span>
+                  <input type="text" name="actor" value="{{ request.args.get('actor','') }}"
+                       class="form-control" placeholder="Contoh: user:1">
+              </div>
             </div>
             <div class="col-12 col-md-3 d-flex align-items-end gap-2">
-              <button class="btn btn-primary flex-fill">
+              <button class="btn btn-primary flex-fill fw-bold">
                 <i class="bi bi-funnel"></i> Filter
               </button>
               <a href="{{ url_for('admin_logs') }}" class="btn btn-outline-secondary">
@@ -79,32 +82,65 @@
           </form>
         </div>
 
-        <div class="card shadow-sm">
-          <div class="card-header bg-primary text-white fw-bold">
-            Riwayat Log
+        <div class="card shadow-sm border-0">
+          <div class="card-header bg-primary text-white fw-bold py-3">
+            <i class="bi bi-clock-history me-2"></i>Riwayat Aktivitas Terbaru
           </div>
           <div class="card-body p-0">
             <div class="table-responsive">
-                <table class="table table-striped table-bordered mb-0 text-nowrap" style="min-width: 800px;">
-                  <thead class="table-primary">
+                <table class="table table-striped table-hover align-middle mb-0 text-nowrap" style="min-width: 800px;">
+                  <thead class="table-light">
                     <tr>
-                      <th>Waktu</th>
-                      <th>Actor</th>
-                      <th>Aksi</th>
-                      <th>Detail</th>
+                      <th class="py-3 ps-4">Waktu</th>
+                      <th class="py-3">Actor / Pengguna</th>
+                      <th class="py-3">Aksi</th>
+                      <th class="py-3">Detail Aktivitas</th>
                     </tr>
                   </thead>
                   <tbody>
                     {% for l in logs %}
                     <tr>
-                      <td>{{ l.timestamp }}</td>
-                      <td>{{ l.actor }}</td>
-                      <td>{{ l.action }}</td>
-                      <td>{{ l.detail or '-' }}</td>
+                      <td class="ps-4 text-muted small">
+                          {{ l.timestamp.strftime('%d-%m-%Y') }}<br>
+                          <span class="fw-bold text-dark">{{ l.timestamp.strftime('%H:%M:%S') }}</span>
+                      </td>
+                      
+                      <td>
+                        {% if user_map and l.actor in user_map %}
+                            <div class="d-flex align-items-center">
+                                <div class="bg-primary text-white rounded-circle d-flex align-items-center justify-content-center me-2" style="width: 35px; height: 35px; font-size: 0.8rem;">
+                                    {{ user_map[l.actor][:2].upper() }}
+                                </div>
+                                <div>
+                                    <div class="fw-bold text-dark">{{ user_map[l.actor] }}</div>
+                                    <span class="badge bg-light text-secondary border" style="font-size: 0.65rem;">{{ l.actor }}</span>
+                                </div>
+                            </div>
+                        {% else %}
+                            <span class="badge bg-secondary">{{ l.actor }}</span>
+                        {% endif %}
+                      </td>
+
+                      <td>
+                          {% if l.level == 'ERROR' %}
+                              <span class="badge bg-danger">ERROR</span>
+                          {% elif l.level == 'WARN' %}
+                              <span class="badge bg-warning text-dark">WARN</span>
+                          {% else %}
+                              <span class="fw-semibold text-primary">{{ l.action }}</span>
+                          {% endif %}
+                      </td>
+                      
+                      <td class="small text-muted text-wrap" style="max-width: 300px;">
+                          {{ l.detail or '-' }}
+                      </td>
                     </tr>
                     {% else %}
                     <tr>
-                      <td colspan="4" class="text-center py-4">Tidak ada log.</td>
+                      <td colspan="4" class="text-center py-5 text-muted">
+                          <i class="bi bi-inbox fs-1 d-block mb-2 opacity-50"></i>
+                          Belum ada aktivitas tercatat.
+                      </td>
                     </tr>
                     {% endfor %}
                   </tbody>

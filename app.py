@@ -247,8 +247,41 @@ def admin_home():
 @app.route("/admin/logs")
 @admin_required
 def admin_logs():
-    logs = SystemLog.query.order_by(SystemLog.timestamp.desc()).limit(200).all()
-    return render_template("admin/logs.html", logs=logs)
+    from sqlalchemy import or_  # Import helper untuk logika "ATAU"
+
+    # 1. Mulai Query dasar (Urutkan dari yang Terbaru)
+    # Ini menjawab pertanyaanmu: Ya, ini otomatis data terbaru di atas.
+    query = SystemLog.query.order_by(SystemLog.timestamp.desc())
+
+    # 2. Logika Filter Cerdas
+    actor_filter = request.args.get('actor')
+    
+    if actor_filter:
+        # A. Cari dulu: Ada gak User yang namanya mirip ketikan Admin?
+        # Misal admin ketik "Budi", kita cari ID-nya si Budi.
+        matching_users = User.query.filter(User.name.ilike(f"%{actor_filter}%")).all()
+        
+        # B. Siapkan kondisi pencarian
+        conditions = []
+        
+        # Kondisi 1: Cari teks mentah (misal admin memang ngetik "user:1" atau "admin")
+        conditions.append(SystemLog.actor.ilike(f"%{actor_filter}%"))
+        
+        # Kondisi 2: Jika ada user ketemu (misal Budi itu ID-nya 5), cari juga "user:5"
+        for u in matching_users:
+            conditions.append(SystemLog.actor == f"user:{u.id}")
+            
+        # C. Terapkan Filter (Logika: Cocok teks mentah ATAU Cocok ID user)
+        query = query.filter(or_(*conditions))
+    
+    # 3. Limit hasil agar tidak berat (200 data terakhir)
+    logs = query.limit(200).all()
+
+    # 4. Buat Peta Nama untuk Tampilan (User Mapping)
+    all_users = User.query.all()
+    user_map = {f"user:{u.id}": u.name for u in all_users}
+
+    return render_template("admin/logs.html", logs=logs, user_map=user_map)
 
 # === ADMIN: Kriteria (update + delete handling) ===
 @app.route('/admin/kriteria', methods=['GET', 'POST'])
