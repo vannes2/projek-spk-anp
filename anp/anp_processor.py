@@ -158,7 +158,7 @@ def analyze_alternatives_pairwise(scores):
 # 3. SUPERMATRIX (DENGAN CONFIG ADMIN)
 # ======================================================
 def get_criteria_limit_matrix_weights():
-    # 1. Default Hardcoded (Backup)
+    # 1. Default Hardcoded (Backup) - SAMA dengan manual
     main_matrix = np.array([
         [1,   1/7, 3,   1/5, 1/3], 
         [7,   1,   9,   3,   5  ], 
@@ -194,41 +194,113 @@ def get_criteria_limit_matrix_weights():
         except Exception as e:
             print(f"Error load config: {e}")
 
-    # 3. Hitung Bobot
+    # 3. Hitung Bobot Kriteria Utama (dari manual: C1=0.068, C2=0.503, C3=0.035, C4=0.260, C5=0.134)
     w_main, ci_main, cr_main = calculate_priority_vector(main_matrix)
     
-    # Inner Dependence (Default)
-    dep_c2_matrix = np.array([[1, 1/5, 1/3], [5, 1, 3], [3, 1/3, 1]])
-    w_dep_c2, _, _ = calculate_priority_vector(dep_c2_matrix)
-
-    # Supermatrix
-    supermatrix = np.zeros((5, 5))
-    for i in range(5):
-        supermatrix[i, 0] = w_main[i]
-        supermatrix[i, 2] = w_main[i]
-        supermatrix[i, 3] = w_main[i]
-        supermatrix[i, 4] = w_main[i]
+    # DEBUG: Tampilkan bobot
+    print(f">>> Bobot Kriteria Utama: {w_main}")
+    print(f">>> CI: {ci_main}, CR: {cr_main}")
     
-    supermatrix[0, 1] = 0.0
-    supermatrix[1, 1] = 0.0
-    supermatrix[2, 1] = w_dep_c2[0]
-    supermatrix[3, 1] = w_dep_c2[1]
-    supermatrix[4, 1] = w_dep_c2[2]
-
-    limit_matrix = np.linalg.matrix_power(supermatrix, 100)
-    final_weights_array = limit_matrix[:, 0] / np.sum(limit_matrix[:, 0])
-
+    # 4. Inner Dependence untuk C2 (dari manual halaman terakhir)
+    # C2 dipengaruhi oleh C3, C4, C5 dengan matriks:
+    # [[1, 1/5, 1/3], [5, 1, 3], [3, 1/3, 1]]
+    dep_c2_matrix = np.array([
+        [1,   1/5, 1/3],  # C3 vs (C3, C4, C5)
+        [5,   1,   3  ],  # C4 vs (C3, C4, C5)
+        [3,   1/3, 1  ]   # C5 vs (C3, C4, C5)
+    ])
+    
+    w_dep_c2, ci_dep, cr_dep = calculate_priority_vector(dep_c2_matrix)
+    print(f">>> Inner Dependence (C3,C4,C5 -> C2): {w_dep_c2}")
+    print(f">>> CI Dep: {ci_dep}, CR Dep: {cr_dep}")
+    
+    # 5. Bangun Supermatrix yang BENAR (5x5)
+    # Urutan: C1, C2, C3, C4, C5
+    supermatrix = np.zeros((5, 5))
+    
+    # Kolom 0: C1 (tidak ada ketergantungan)
+    supermatrix[:, 0] = w_main  # Semua kriteria dipengaruhi oleh bobot utama
+    
+    # Kolom 1: C2 (dipengaruhi C3, C4, C5)
+    supermatrix[0, 1] = 0.0  # C1 tidak pengaruhi C2
+    supermatrix[1, 1] = 0.0  # C2 tidak pengaruhi diri sendiri di sini
+    supermatrix[2, 1] = w_dep_c2[0]  # C3 -> C2
+    supermatrix[3, 1] = w_dep_c2[1]  # C4 -> C2
+    supermatrix[4, 1] = w_dep_c2[2]  # C5 -> C2
+    
+    # Kolom 2: C3 (tidak ada ketergantungan lain)
+    supermatrix[:, 2] = w_main
+    
+    # Kolom 3: C4 (tidak ada ketergantungan lain)
+    supermatrix[:, 3] = w_main
+    
+    # Kolom 4: C5 (tidak ada ketergantungan lain)
+    supermatrix[:, 4] = w_main
+    
+    print(">>> Supermatrix awal:")
+    print(supermatrix)
+    
+    # 6. NORMALISASI Supermatrix (setiap kolom harus berjumlah 1)
+    for j in range(5):
+        col_sum = np.sum(supermatrix[:, j])
+        if col_sum > 0:
+            supermatrix[:, j] = supermatrix[:, j] / col_sum
+    
+    print(">>> Supermatrix ternormalisasi:")
+    print(supermatrix)
+    
+    # 7. Hitung Limit Matrix dengan metode iteratif (lebih stabil)
+    # Limit matrix = supermatrix^∞ (konvergen ke nilai stabil)
+    limit_matrix = supermatrix.copy()
+    for i in range(50):  # Iterasi 50x sudah cukup untuk konvergensi
+        limit_matrix = np.dot(limit_matrix, supermatrix)
+    
+    # Alternatif: bisa juga pakai eigenvalue
+    # eigenvalues, eigenvectors = np.linalg.eig(supermatrix.T)
+    # idx = np.argmax(np.abs(eigenvalues))
+    # limit_weights = np.abs(eigenvectors[:, idx])
+    # limit_weights = limit_weights / np.sum(limit_weights)
+    
+    print(">>> Limit Matrix kolom 0:")
+    print(limit_matrix[:, 0])
+    
+    # 8. Ambil bobot akhir dari kolom pertama Limit Matrix
+    final_weights_array = limit_matrix[:, 0]
+    
+    # Normalisasi final (pastikan total = 1)
+    final_weights_array = final_weights_array / np.sum(final_weights_array)
+    
+    print(f">>> Bobot ANP Final: {final_weights_array}")
+    print(f">>> Total: {np.sum(final_weights_array)}")
+    
+    # 9. Format output
     final_anp_weights = {
-        "C1": final_weights_array[0], "C2": final_weights_array[1],
-        "C3": final_weights_array[2], "C4": final_weights_array[3], "C5": final_weights_array[4]
+        "C1": float(final_weights_array[0]),
+        "C2": float(final_weights_array[1]),
+        "C3": float(final_weights_array[2]),
+        "C4": float(final_weights_array[3]),
+        "C5": float(final_weights_array[4])
     }
+    
+    # Untuk testing, bandingkan dengan manual
+    manual_weights = {
+        "C1": 0.068, "C2": 0.503, "C3": 0.035, "C4": 0.260, "C5": 0.134
+    }
+    
+    print(">>> Perbandingan dengan manual:")
+    for key in final_anp_weights:
+        diff = abs(final_anp_weights[key] - manual_weights[key])
+        print(f"  {key}: ANP={final_anp_weights[key]:.3f}, Manual={manual_weights[key]:.3f}, Diff={diff:.3f}")
     
     consistency_report = {
-        "CR_Criteria_Matrix": cr_main, "CI_Criteria_Matrix": ci_main,
-        "Status": "Valid" if cr_main < 0.1 else "Konsistensi Rendah"
+        "CR_Criteria_Matrix": float(cr_main),
+        "CI_Criteria_Matrix": float(ci_main),
+        "CR_Inner_Dependence": float(cr_dep),
+        "Status": "Valid" if cr_main < 0.1 and cr_dep < 0.1 else "Konsistensi Rendah",
+        "Source": "ANP Calculation"
     }
+    
     return final_anp_weights, consistency_report
-
 # ======================================================
 # 4. FUNGSI UTAMA (MAIN)
 # ======================================================
