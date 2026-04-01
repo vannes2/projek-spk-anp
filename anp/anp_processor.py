@@ -301,8 +301,82 @@ def get_criteria_limit_matrix_weights():
     }
     
     return final_anp_weights, consistency_report
+
 # ======================================================
-# 4. FUNGSI UTAMA (MAIN)
+# 5. ANP SIMPLE (TAMBAHKAN DI SINI 🔥)
+# ======================================================
+
+def get_anp_weights_simple():
+    matrix = np.array([
+        [1,   1/7, 3,   1/5, 1/3], 
+        [7,   1,   9,   3,   5  ], 
+        [1/3, 1/9, 1,   1/7, 1/5], 
+        [5,   1/3, 7,   1,   3  ], 
+        [3,   1/5, 5,   1/3, 1  ]  
+    ])
+
+    weights, ci, cr = calculate_priority_vector(matrix)
+
+    return {
+    "C1": float(weights[0]),
+    "C2": float(weights[1]),
+    "C3": float(weights[2]),
+    "C4": float(weights[3]),
+    "C5": float(weights[4])
+    }, {
+        "CR_Criteria_Matrix": cr,  # 🔥 SAMAKAN KEY
+        "CI_Criteria_Matrix": ci,
+        "note": "ANP Pairwise (tanpa limit matrix)"
+    }
+
+# ======================================================
+# 6. TOPSIS ENGINE (FINAL)
+# ======================================================
+def calculate_topsis(df_scores, weights_dict):
+    """
+    df_scores : DataFrame (C1–C5 sudah dalam skala 1–5)
+    weights_dict : hasil ANP {"C1":..., "C2":...}
+    """
+
+    # 1. Konversi ke numpy
+    criteria = ["C1", "C2", "C3", "C4", "C5"]
+    X = df_scores[criteria].values.astype(float)
+
+    # 2. Bobot dari ANP
+    W = np.array([weights_dict[c] for c in criteria])
+
+    # 3. Normalisasi matriks keputusan
+    norm = np.sqrt((X ** 2).sum(axis=0))
+    norm[norm == 0] = 1  # hindari pembagian nol
+    R = X / norm
+
+    # 4. Matriks ternormalisasi berbobot
+    V = R * W
+
+    # 5. Tentukan solusi ideal (+) dan (-)
+    # C1 = cost, lainnya benefit
+    ideal_pos = np.zeros(len(criteria))
+    ideal_neg = np.zeros(len(criteria))
+
+    for i, c in enumerate(criteria):
+        if c in ["C1", "C5"]: # COST
+            ideal_pos[i] = np.min(V[:, i])  # terbaik (biaya kecil)
+            ideal_neg[i] = np.max(V[:, i])  # terburuk
+        else:  # BENEFIT
+            ideal_pos[i] = np.max(V[:, i])
+            ideal_neg[i] = np.min(V[:, i])
+
+    # 6. Hitung jarak ke solusi ideal
+    D_pos = np.sqrt(((V - ideal_pos) ** 2).sum(axis=1))
+    D_neg = np.sqrt(((V - ideal_neg) ** 2).sum(axis=1))
+
+    # 7. Hitung skor preferensi
+    scores = D_neg / (D_pos + D_neg + 1e-9)  # hindari division by zero
+
+    return scores
+
+# ======================================================
+# 7. FUNGSI UTAMA (MAIN)
 # ======================================================
 def run_anp_analysis(df):
     print(">>> Memulai ANP Processor (Final Version)...")
@@ -321,23 +395,28 @@ def run_anp_analysis(df):
 
     # 2. Konversi Data (Pre-processing)
     df_scores = pd.DataFrame()
-    
-    # C1 & C2 (Numerik Dynamic)
     try:
+        # =========================
+        # MODE 1: DATA SUDAH ANGKA (PROPOSAL)
+        # =========================
+        df_scores = df[[criteria_map["C1"][0],
+                        criteria_map["C2"][0],
+                        criteria_map["C3"][0],
+                        criteria_map["C4"][0],
+                        criteria_map["C5"][0]]].astype(float)
+
+        df_scores.columns = ["C1", "C2", "C3", "C4", "C5"]
+
+    except:
+        # =========================
+        # MODE 2: DATA TEKS (APLIKASI)
+        # =========================
         df_scores["C1"] = normalize_numeric_column(df[criteria_map["C1"][0]], is_cost=True)
         df_scores["C2"] = normalize_numeric_column(df[criteria_map["C2"][0]], is_cost=False)
-    except Exception as e:
-        # Lempar error ke app.py jika format salah
-        raise ValueError(f"Error Konversi Angka: {e}")
 
-    # C3, C4, C5 (Kategori Strict)
-    for cat in ["C3", "C4", "C5"]:
-        col_name = criteria_map[cat][0]
-        try:
+        for cat in ["C3", "C4", "C5"]:
+            col_name = criteria_map[cat][0]
             df_scores[cat] = df[col_name].apply(lambda x: translate_categorical_value(col_name, x))
-        except ValueError as e:
-            # PENTING: Tangkap error per baris dan hentikan proses
-            raise ValueError(str(e))
 
     # 3. Hitung Pairwise Alternatif
     local_priorities = {}
@@ -348,13 +427,11 @@ def run_anp_analysis(df):
         detailed_consistency[f"CR_{col}"] = cr
 
     # 4. Ambil Bobot Global
-    global_weights, criteria_report = get_criteria_limit_matrix_weights()
+    global_weights, criteria_report = get_anp_weights_simple()
 
     # 5. Sintesis
     alts = df[df.columns[0]].tolist()
-    final_scores = np.zeros(len(alts))
-    for code, w_val in global_weights.items():
-        final_scores += np.array(local_priorities[code]) * w_val
+    final_scores = calculate_topsis(df_scores, global_weights)
 
     # 6. Result
     result_df = pd.DataFrame({"Alternatif": alts, "Skor_Global": np.round(final_scores, 4)})

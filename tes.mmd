@@ -1,0 +1,48 @@
+sequenceDiagram
+    autonumber
+    actor U as User
+    participant Browser
+    participant App as Flask Server
+    participant Logic as ANP Processor
+    participant DB as Database
+
+    Note over U, DB: Flow Analisis SPK ANP
+
+    U->>Browser: Upload File (CSV/Excel)
+    Browser->>App: POST /upload
+    
+    activate App
+    App->>App: Validate File Extension
+    
+    alt File Invalid
+        App-->>Browser: Flash Error & Redirect
+    else File Valid
+        App->>App: Save File to /uploads
+        
+        %% Proses Analisis
+        App->>Logic: run_anp_analysis(DataFrame)
+        activate Logic
+        
+        Logic->>Logic: Data Pre-processing
+        Note right of Logic: Normalize Numeric (C1,C2)<br/>Map Categories (C3,C4,C5)
+        
+        Logic->>Logic: Calculate Pairwise Matrix
+        Logic->>Logic: Build Supermatrix & Limit Matrix
+        
+        Logic-->>App: Return Result {Ranking, Chart, Weights}
+        deactivate Logic
+        
+        %% Simpan ke Database
+        App->>DB: INSERT into AnalysisHistory
+        activate DB
+        DB-->>App: Success
+        deactivate DB
+        
+        %% Log Aktivitas
+        App->>DB: INSERT into SystemLog
+        
+        App-->>Browser: Render Page (Table + Chart)
+    end
+    deactivate App
+    
+    U->>Browser: View Analysis Result

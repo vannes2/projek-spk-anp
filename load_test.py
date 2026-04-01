@@ -3,6 +3,7 @@ import os
 
 class UserSimulation(HttpUser):
     wait_time = between(2, 5)
+    host = "https://127.0.0.1:5000"
 
     def on_start(self):
         """Inisialisasi file untuk diupload"""
@@ -17,6 +18,7 @@ class UserSimulation(HttpUser):
 
         # Simulasi session user yang sudah login
         self.client.cookies.set("session", "dummy_user_session_value")
+        self.client.verify = False
 
     @task(2)
     def upload_file_for_analysis(self):
