@@ -35,84 +35,72 @@ def extract_number_and_convert(value_str):
     
     return base_val * multiplier
 
-def normalize_numeric_column(series, is_cost=False):
-    """
-    Dynamic Min-Max Scaling.
-    Mengubah angka berapapun (ribuan s/d miliaran) menjadi skor 1-5.
-    """
-    # 1. Konversi ke angka murni
-    clean_data = series.apply(extract_number_and_convert)
+def smart_score(column, value):
+    v_raw = str(value).lower().strip()
     
-    
-    min_val = clean_data.min()
-    max_val = clean_data.max()
-    
-    # Jika data seragam (min == max), kasih skor tengah
-    if min_val == max_val:
-        return pd.Series([3.0] * len(series))
-    
-    # 2. Rumus Normalisasi 1-5
-    scores = 1 + ((clean_data - min_val) * 4 / (max_val - min_val))
-    
-    # 3. Jika COST (Biaya), balik nilainya (Makin mahal makin kecil skornya)
-    if is_cost:
-        scores = 6 - scores
-        
-    return scores
+    # 1. PENGAMANAN: Jika data excelmu SUDAH berupa angka 1-5 murni
+    if v_raw.isdigit() and len(v_raw) == 1:
+        val = int(v_raw)
+        if 1 <= val <= 5: return val
 
-def translate_categorical_value(column_name, value):
-    """
-    Validasi KETAT untuk kolom teks (C3, C4, C5).
-    Jika input tidak dikenal -> ERROR (Raise ValueError).
-    """
-    v_orig = str(value).strip()
-    v = v_orig.lower()
-    col = column_name.lower()
-    score = None 
-
-    # --- C3: BAHAN ---
-    if "c3" in col or "bahan" in col:
-        if "sangat" in v: score = 5
-        elif "cukup" in v: score = 4
-        elif "agak sulit" in v: score = 2
-        elif "sulit" in v: score = 1
-        else: 
-            # STRICT MODE: Tidak ada else score=5
-            raise ValueError(f"Isi kolom C3 '{v_orig}' tidak valid. Gunakan: Sangat Mudah, Cukup, Sulit.")
-
-    # --- C4: FASILITAS ---
-    elif "c4" in col or "fasil" in col:
-        if "tidak ada" in v or v == "-" or v == "": item_count = 0
-        else: item_count = v.count(",") + 1
-        
-        if "wifi" in v: score = 5
-        elif item_count >= 4: score = 5
-        elif item_count == 3: score = 4
-        elif item_count == 2: score = 3
-        elif item_count == 1: score = 2
-        else: score = 1 # C4 aman default 1 (basis jumlah koma)
-
-    # --- C5: PERSAINGAN ---
-    elif "c5" in col or "saing" in col:
-        if "belum ada" in v: score = 5
-        elif "tidak" in v: score = 4
-        elif "cukup" in v: score = 3
-        elif "sangat" in v: score = 2
-        elif "ketat" in v: score = 1
-        else: 
-            # STRICT MODE: Tidak ada else score=2
-            raise ValueError(f"Isi kolom C5 '{v_orig}' tidak valid. Gunakan: Ketat, Biasa, Tidak Ada.")
+    # 2. BERSIHKAN TEKS: Hapus koma ribuan (tapi biarkan koma untuk list C4)
+    v_calc = v_raw.replace(",", "") if column.upper() != "C4" else v_raw
     
-    # Cek jika user input angka manual 1-5
-    if score is None:
-        try:
-            val_float = float(value)
-            if 1 <= val_float <= 5: score = val_float
-            else: raise ValueError
-        except:
-            raise ValueError(f"Data '{v_orig}' pada kolom {column_name} tidak dikenali.")
+    # 3. AMBIL ANGKA PERTAMA SAJA (Abaikan embel-embel angka lain seperti "Skor 4")
+    matches = re.findall(r'\d+\.?\d*', v_calc)
+    num = float(matches[0]) if matches else 0
 
-    return score
+    multiplier = 1
+    if "juta" in v_calc: multiplier = 1_000_000
+    elif "ribu" in v_calc or "rb" in v_calc: multiplier = 1_000
+    elif "ekor" in v_calc: multiplier = 4
+    elif "biji" in v_calc or "tusuk" in v_calc: multiplier = 0.2
+
+    num = num * multiplier
+    col = column.upper()
+
+    # =========================
+    # LOGIKA PENILAIAN KRITERIA
+    # =========================
+    if col == "C1":  # BIAYA SEWA
+        if num >= 6000000: return 1
+        elif 3500000 <= num < 6000000: return 2
+        elif 1600000 <= num < 3500000: return 3
+        elif 1000000 <= num < 1600000: return 4
+        elif 0 < num < 1000000: return 5
+        else: return 3
+
+    elif col == "C2": # PENJUALAN
+        if 0 < num <= 15: return 1
+        elif 15 < num <= 30: return 2
+        elif 30 < num <= 50: return 3
+        elif 50 < num <= 100: return 4
+        elif num > 100: return 5
+        else: return 3
+
+    elif col == "C3": # BAHAN BAKU
+        if "sangat" in v_raw: return 5
+        elif "cukup" in v_raw: return 4
+        elif "mudah" in v_raw: return 3
+        elif "agak" in v_raw: return 2
+        else: return 1
+
+    elif col == "C4": # FASILITAS
+        if "tidak ada" in v_raw or v_raw == "": return 1
+        # Hitung koma di teks asli (v_raw)
+        items = v_raw.count(",") + 1
+        return min(items + 1, 5)
+
+    elif col == "C5": # TINGKAT PERSAINGAN
+        if "belum ada" in v_raw: return 5
+        elif "tidak" in v_raw: return 4
+        elif "cukup" in v_raw: return 3
+        elif "sangat" in v_raw: return 2
+        elif "ketat" in v_raw: return 1
+        else: return 1
+
+    # Fallback
+    return 1
 
 # ======================================================
 # 2. ANP ENGINE (CORE)
@@ -333,45 +321,32 @@ def get_anp_weights_simple():
 # 6. TOPSIS ENGINE (FINAL)
 # ======================================================
 def calculate_topsis(df_scores, weights_dict):
-    """
-    df_scores : DataFrame (C1–C5 sudah dalam skala 1–5)
-    weights_dict : hasil ANP {"C1":..., "C2":...}
-    """
-
-    # 1. Konversi ke numpy
     criteria = ["C1", "C2", "C3", "C4", "C5"]
     X = df_scores[criteria].values.astype(float)
 
-    # 2. Bobot dari ANP
+    # 1. Bobot dari ANP
     W = np.array([weights_dict[c] for c in criteria])
 
-    # 3. Normalisasi matriks keputusan
+    # 2. Normalisasi matriks keputusan (Membagi nilai dengan akar kuadrat)
     norm = np.sqrt((X ** 2).sum(axis=0))
-    norm[norm == 0] = 1  # hindari pembagian nol
+    norm[norm == 0] = 1  
     R = X / norm
 
-    # 4. Matriks ternormalisasi berbobot
+    # 3. Matriks ternormalisasi terbobot
     V = R * W
 
-    # 5. Tentukan solusi ideal (+) dan (-)
-    # C1 = cost, lainnya benefit
-    ideal_pos = np.zeros(len(criteria))
-    ideal_neg = np.zeros(len(criteria))
+    # 4. Solusi Ideal (+) dan (-)
+    # KARENA skala 1-5 berarti angka tertinggi selalu yang terbaik,
+    # MAKA semua kriteria diperlakukan sebagai BENEFIT.
+    ideal_pos = np.max(V, axis=0) # Nilai max di setiap kolom
+    ideal_neg = np.min(V, axis=0) # Nilai min di setiap kolom
 
-    for i, c in enumerate(criteria):
-        if c in ["C1", "C5"]: # COST
-            ideal_pos[i] = np.min(V[:, i])  # terbaik (biaya kecil)
-            ideal_neg[i] = np.max(V[:, i])  # terburuk
-        else:  # BENEFIT
-            ideal_pos[i] = np.max(V[:, i])
-            ideal_neg[i] = np.min(V[:, i])
-
-    # 6. Hitung jarak ke solusi ideal
+    # 5. Hitung jarak ke solusi ideal
     D_pos = np.sqrt(((V - ideal_pos) ** 2).sum(axis=1))
     D_neg = np.sqrt(((V - ideal_neg) ** 2).sum(axis=1))
 
-    # 7. Hitung skor preferensi
-    scores = D_neg / (D_pos + D_neg + 1e-9)  # hindari division by zero
+    # 6. Hitung skor preferensi
+    scores = D_neg / (D_pos + D_neg + 1e-9)
 
     return scores
 
@@ -395,29 +370,15 @@ def run_anp_analysis(df):
 
     # 2. Konversi Data (Pre-processing)
     df_scores = pd.DataFrame()
-    try:
-        # =========================
-        # MODE 1: DATA SUDAH ANGKA (PROPOSAL)
-        # =========================
-        df_scores = df[[criteria_map["C1"][0],
-                        criteria_map["C2"][0],
-                        criteria_map["C3"][0],
-                        criteria_map["C4"][0],
-                        criteria_map["C5"][0]]].astype(float)
-
-        df_scores.columns = ["C1", "C2", "C3", "C4", "C5"]
-
-    except:
-        # =========================
-        # MODE 2: DATA TEKS (APLIKASI)
-        # =========================
-        df_scores["C1"] = normalize_numeric_column(df[criteria_map["C1"][0]], is_cost=True)
-        df_scores["C2"] = normalize_numeric_column(df[criteria_map["C2"][0]], is_cost=False)
-
-        for cat in ["C3", "C4", "C5"]:
-            col_name = criteria_map[cat][0]
-            df_scores[cat] = df[col_name].apply(lambda x: translate_categorical_value(col_name, x))
-
+    for c in ["C1", "C2", "C3", "C4", "C5"]:
+        col_name = criteria_map[c][0]
+        df_scores[c] = df[col_name].apply(lambda x: smart_score(c, x))
+        
+    # TAMBAHKAN 3 BARIS INI UNTUK DEBUGGING
+    print("\n=== DEBUG MATRIKS KEPUTUSAN (SKOR 1-5) ===")
+    print(df_scores)
+    print("==========================================\n")
+    
     # 3. Hitung Pairwise Alternatif
     local_priorities = {}
     detailed_consistency = {}
