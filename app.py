@@ -289,8 +289,6 @@ def admin_logs():
 # === ADMIN: Kriteria (update + delete handling) ===
 @app.route('/admin/kriteria', methods=['GET', 'POST'])
 def admin_kriteria():
-    # Opsional: Cek apakah user sudah login / admin
-    # if 'user_id' not in session: return redirect(url_for('login'))
 
     filename = 'anp_config.json'
     criteria_names = ["C1 (Sewa)", "C2 (Jual)", "C3 (Bahan)", "C4 (Fasilitas)", "C5 (Saing)"]
@@ -328,7 +326,6 @@ def admin_kriteria():
         current_matrix = [[1]*5 for _ in range(5)] 
 
     return render_template('admin/kriteria.html', matrix=current_matrix, names=criteria_names)
-
 
 # === ADMIN: Edit Kriteria (POST dari modal) ===
 @app.route("/admin/kriteria/edit/<int:id>", methods=["POST"])

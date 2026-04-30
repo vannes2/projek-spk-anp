@@ -305,6 +305,8 @@ def analyze_alternatives_pairwise(scores):
 # ======================================================
 
 def get_anp_weights_simple():
+    config_path = "anp_config.json"
+    # default matrix (backup)
     matrix = np.array([
         [1,   1/7, 3,   1/5, 1/3], 
         [7,   1,   9,   3,   5  ], 
@@ -313,18 +315,30 @@ def get_anp_weights_simple():
         [3,   1/5, 5,   1/3, 1  ]  
     ])
 
+    # 🔥 ambil dari admin kalau ada
+    if os.path.exists(config_path):
+        try:
+            with open(config_path, "r") as f:
+                data = json.load(f)
+
+            if "matrix" in data:
+                matrix = np.array(data["matrix"], dtype=float)
+                print(">>> Pakai matrix dari ADMIN")
+        except Exception as e:
+            print("Error load JSON:", e)
+
     weights, ci, cr = calculate_priority_vector(matrix)
 
     return {
-    "C1": float(weights[0]),
-    "C2": float(weights[1]),
-    "C3": float(weights[2]),
-    "C4": float(weights[3]),
-    "C5": float(weights[4])
+        "C1": float(weights[0]),
+        "C2": float(weights[1]),
+        "C3": float(weights[2]),
+        "C4": float(weights[3]),
+        "C5": float(weights[4])
     }, {
-        "CR_Criteria_Matrix": cr,  # 🔥 SAMAKAN KEY
+        "CR_Criteria_Matrix": cr,
         "CI_Criteria_Matrix": ci,
-        "note": "ANP Pairwise (tanpa limit matrix)"
+        "note": "ANP Pairwise (admin configurable)"
     }
 
 # ======================================================
