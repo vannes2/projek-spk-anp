@@ -244,8 +244,19 @@ def admin_required(f):
 @admin_required
 def admin_home():
     """Halaman utama admin menampilkan daftar user"""
+
     users = User.query.all()
-    return render_template("admin/home.html", users=users, name=session.get("user_name"))
+
+    total_user_role = len([u for u in users if u.role.lower() == "user"])
+    total_admin_role = len([u for u in users if u.role.lower() == "admin"])
+
+    return render_template(
+        "admin/home.html",
+        users=users,
+        name=session.get("user_name"),
+        total_user_role=total_user_role,
+        total_admin_role=total_admin_role
+    )
 
 @app.route("/admin/logs")
 @admin_required
