@@ -1,4 +1,4 @@
-from flask import Flask, redirect, url_for, session, render_template, request, flash, make_response
+from flask import Flask, redirect, url_for, session, render_template, request, flash, make_response, send_file, abort
 from flask_sqlalchemy import SQLAlchemy
 from flask_dance.contrib.google import make_google_blueprint, google
 from werkzeug.utils import secure_filename
@@ -11,10 +11,8 @@ import io
 import math
 from xhtml2pdf import pisa
 from functools import wraps
-from flask import abort
 from datetime import datetime
 from urllib.parse import unquote
-from flask import send_file
 from anp.anp_processor import run_anp_analysis
 
 app = Flask(__name__)
@@ -84,45 +82,33 @@ class Criteria(db.Model):
     name = db.Column(db.String(200), nullable=False)
     description = db.Column(db.String(500))
     weight_default = db.Column(db.Float, default=0.0)
-    aliases = db.Column(db.String(500))   # comma-separated aliases, e.g. "sewa,harga sewa,biaya_sewa"
+    aliases = db.Column(db.String(500)) 
 
     def __repr__(self):
         return f"<Criteria {self.id} {self.name}>"
 
-
 def normalize_aliases(aliases_str):
-    """Return list of cleaned alias tokens (lowercase, stripped)."""
     if not aliases_str:
         return []
     parts = [p.strip().lower() for p in aliases_str.split(",") if p.strip()]
-    # also keep multi-word tokens
     return parts
 
 def map_columns_using_criteria_db(df):
-    """
-    Coba mapping otomatis: untuk setiap Criteria (urut), pakai aliases+name untuk mencari kolom.
-    Return dict mapping criteria_name -> matched_column_or_None
-    """
     cols = list(df.columns)
     mapped = {}
-    # ambil criteria sorted by id (as they likely correspond to C1..C5)
     criteria_list = Criteria.query.order_by(Criteria.id).all()
     for idx, c in enumerate(criteria_list):
         aliases = normalize_aliases(c.aliases)
-        # selalu sertakan nama criteria sendiri (lowercase)
         if c.name:
             aliases.append(c.name.lower())
         found = None
         for col in cols:
             col_l = str(col).lower()
-            # match jika salah satu alias ada di nama kolom (contain)
             if any(a in col_l for a in aliases if a):
                 found = col
                 break
         mapped[c.name] = found
     return mapped
-
-
 
 # === FILTER FORMAT RUPIAH ===
 @app.template_filter('rupiah')
@@ -159,19 +145,36 @@ def create_pdf(html_content):
         return result.getvalue()
     return None
 
+def write_log(level, actor, action, detail=""):
+    try:
+        entry = SystemLog(
+            level=(level or "INFO").upper(),
+            actor=str(actor),
+            action=str(action),
+            detail=str(detail)
+        )
+        db.session.add(entry)
+        db.session.commit()
+        print("[LOGGED]", level, actor, action)
+    except Exception as e:
+        print("[LOG ERROR]", e)
+
 # === ROUTES UTAMA ===
 @app.route("/")
-def index(): return render_template("user/landing.html")
+def index(): 
+    return render_template("user/landing.html")
 
 @app.route("/register", methods=["GET", "POST"])
 def register():
     if request.method == "POST":
         name, email, pwd = request.form.get("name"), request.form.get("email"), request.form.get("password")
         if User.query.filter_by(email=email).first():
-            flash("Email sudah terdaftar.", "warning"); return redirect(url_for("login"))
+            flash("Email sudah terdaftar.", "warning")
+            return redirect(url_for("login"))
         db.session.add(User(name=name, email=email, password=generate_password_hash(pwd, method='pbkdf2:sha256'), picture=None))
         db.session.commit()
-        flash("Berhasil daftar.", "success"); return redirect(url_for("login"))
+        flash("Berhasil daftar.", "success")
+        return redirect(url_for("login"))
     return render_template("user/register.html")
 
 @app.route("/login", methods=["GET", "POST"])
@@ -180,33 +183,27 @@ def login():
         email = request.form.get("email")
         pwd = request.form.get("password")
         
-        # Cari user berdasarkan email
         user = User.query.filter_by(email=email).first()
 
-        # 1. Cek apakah user ada
         if not user:
             flash("❌ Akun tidak ditemukan. Silakan daftar dulu.", "danger")
             return redirect(url_for("login"))
 
-        # 2. Cek Password
         if user.password and check_password_hash(user.password, pwd):
             session["user_id"] = user.id
             session["user_name"] = user.name
             session["user_picture"] = user.picture or f"https://ui-avatars.com/api/?name={user.name}"
             session["user_role"] = user.role
 
-            # 3. Redirect Sesuai Role (PENTING!)
             if user.role == "admin":
-                return redirect(url_for("admin_home")) # Admin ke panel admin
+                return redirect(url_for("admin_home"))
             else:
-                return redirect(url_for("dashboard"))  # User biasa ke dashboard
-        
+                return redirect(url_for("dashboard"))
         else:
             flash("❌ Password salah.", "danger")
             return redirect(url_for("login"))
 
     return render_template("user/login.html")
-
 
 @app.route("/login/google")
 def google_login():
@@ -222,31 +219,26 @@ def after_login():
     user = User.query.filter_by(email=info["email"]).first()
     if not user:
         user = User(name=info["name"], email=info["email"], picture=info["picture"], password=None, role="user")
-        db.session.add(user); db.session.commit()
+        db.session.add(user)
+        db.session.commit()
     session["user_id"] = user.id
     session["user_name"] = user.name
     session["user_picture"] = user.picture
     session["user_role"] = user.role or "user"
     return redirect(url_for("dashboard"))
 
-
-
 def admin_required(f):
     @wraps(f)
     def decorated_function(*args, **kwargs):
         if session.get("user_role") != "admin":
-            abort(403)  # Forbidden
+            abort(403)
         return f(*args, **kwargs)
     return decorated_function
-
 
 @app.route("/admin/home")
 @admin_required
 def admin_home():
-    """Halaman utama admin menampilkan daftar user"""
-
     users = User.query.all()
-
     total_user_role = len([u for u in users if u.role.lower() == "user"])
     total_admin_role = len([u for u in users if u.role.lower() == "admin"])
 
@@ -261,51 +253,33 @@ def admin_home():
 @app.route("/admin/logs")
 @admin_required
 def admin_logs():
-    from sqlalchemy import or_  # Import helper untuk logika "ATAU"
+    from sqlalchemy import or_
 
-    # 1. Mulai Query dasar (Urutkan dari yang Terbaru)
-    # Ini menjawab pertanyaanmu: Ya, ini otomatis data terbaru di atas.
     query = SystemLog.query.order_by(SystemLog.timestamp.desc())
-
-    # 2. Logika Filter Cerdas
     actor_filter = request.args.get('actor')
     
     if actor_filter:
-        # A. Cari dulu: Ada gak User yang namanya mirip ketikan Admin?
-        # Misal admin ketik "Budi", kita cari ID-nya si Budi.
         matching_users = User.query.filter(User.name.ilike(f"%{actor_filter}%")).all()
-        
-        # B. Siapkan kondisi pencarian
         conditions = []
-        
-        # Kondisi 1: Cari teks mentah (misal admin memang ngetik "user:1" atau "admin")
         conditions.append(SystemLog.actor.ilike(f"%{actor_filter}%"))
         
-        # Kondisi 2: Jika ada user ketemu (misal Budi itu ID-nya 5), cari juga "user:5"
         for u in matching_users:
             conditions.append(SystemLog.actor == f"user:{u.id}")
             
-        # C. Terapkan Filter (Logika: Cocok teks mentah ATAU Cocok ID user)
         query = query.filter(or_(*conditions))
     
-    # 3. Limit hasil agar tidak berat (200 data terakhir)
     logs = query.limit(200).all()
-
-    # 4. Buat Peta Nama untuk Tampilan (User Mapping)
     all_users = User.query.all()
     user_map = {f"user:{u.id}": u.name for u in all_users}
 
     return render_template("admin/logs.html", logs=logs, user_map=user_map)
 
-# === ADMIN: Kriteria (update + delete handling) ===
 @app.route('/admin/kriteria', methods=['GET', 'POST'])
 def admin_kriteria():
-
     filename = 'anp_config.json'
     criteria_names = ["C1 (Sewa)", "C2 (Jual)", "C3 (Bahan)", "C4 (Fasilitas)", "C5 (Saing)"]
 
     if request.method == 'POST':
-        # 1. Ambil data dari Form Matrix
         try:
             new_matrix = [[0.0]*5 for _ in range(5)]
             
@@ -317,7 +291,6 @@ def admin_kriteria():
                         val = request.form.get(f'cell_{i}_{j}')
                         new_matrix[i][j] = float(val) if val else 1.0
             
-            # 2. Simpan ke JSON
             with open(filename, 'w') as f:
                 json.dump({"matrix": new_matrix}, f)
                 
@@ -327,18 +300,15 @@ def admin_kriteria():
             
         return redirect(url_for('admin_kriteria'))
 
-    # --- GET: TAMPILKAN MATRIKS SAAT INI ---
     try:
         with open(filename, 'r') as f:
             data = json.load(f)
             current_matrix = data["matrix"]
     except:
-        # Default jika file belum ada
         current_matrix = [[1]*5 for _ in range(5)] 
 
     return render_template('admin/kriteria.html', matrix=current_matrix, names=criteria_names)
 
-# === ADMIN: Edit Kriteria (POST dari modal) ===
 @app.route("/admin/kriteria/edit/<int:id>", methods=["POST"])
 @admin_required
 def admin_kriteria_edit(id):
@@ -356,16 +326,16 @@ def admin_kriteria_edit(id):
     try:
         k.weight_default = float(weight) if weight is not None and weight != "" else k.weight_default
     except ValueError:
-        # abaikan jika bukan angka
         pass
 
     db.session.commit()
     flash("Kriteria berhasil diperbarui.", "success")
     return redirect(url_for('admin_kriteria'))
 
-
 @app.route("/logout")
-def logout(): session.clear(); return redirect(url_for("index"))
+def logout(): 
+    session.clear()
+    return redirect(url_for("index"))
 
 @app.route("/dashboard")
 def dashboard():
@@ -375,18 +345,15 @@ def dashboard():
 # --- SPK ROUTE ---
 @app.route("/upload", methods=["GET", "POST"])
 def upload_file():
-    """Upload file Excel/CSV untuk analisis ANP & simpan hasil lengkap ke riwayat"""
+    """Upload file Excel/CSV untuk analisis ANP-TOPSIS & simpan hasil komparasi lengkap"""
     if "user_id" not in session:
         return redirect(url_for("login"))
 
     if request.method == "POST":
         file = request.files.get("file")
 
-        # 🔒 Validasi file
         if not file or not allowed_file(file.filename):
             flash("⚠️ Harap unggah file dengan format CSV atau Excel.", "warning")
-
-            # Log attempt invalid upload
             write_log(
                 "WARN",
                 f"user:{session.get('user_id')}",
@@ -401,7 +368,6 @@ def upload_file():
         session["uploaded_filepath"] = filepath
 
         try:
-            # 📘 Baca file (CSV/Excel)
             if filename.endswith(".csv"):
                 df = pd.read_csv(filepath, sep=";", engine="python")
                 if len(df.columns) == 1:
@@ -409,7 +375,6 @@ def upload_file():
             else:
                 df = pd.read_excel(filepath)
 
-            # 🎬 Deteksi kolom video/link (opsional)
             video_map = {}
             col_name = df.columns[0]
             col_video = next((c for c in df.columns if "video" in c.lower() or "link" in c.lower()), None)
@@ -418,43 +383,40 @@ def upload_file():
                 for _, row in df.iterrows():
                     video_map[str(row[col_name])] = convert_youtube_embed(str(row[col_video]))
 
-            # ⚙️ Jalankan analisis ANP
+            # ⚙️ Jalankan analisis multi-engine terintegrasi
             result_data = run_anp_analysis(df)
+            result_data["table_html"] = df.to_html(classes="table table-bordered table-striped text-center mb-0", index=False)
 
-            # 💡 Tambahkan hasil tabel ke JSON agar bisa ditampilkan ulang
-            result_data["table_html"] = df.to_html(classes="table table-bordered", index=False)
+            # Tambahkan tautan video ke alternatif di seluruh list perangkingan
+            for list_key in ["pure_anp_ranking", "pure_topsis_ranking", "hybrid_ranking"]:
+                if list_key in result_data:
+                    for item in result_data[list_key]:
+                        item["video_url"] = video_map.get(item.get("Alternatif"))
 
-            # 💡 Tambahkan video ke setiap alternatif
-            for item in result_data.get("ranking", []):
-                item["video_url"] = video_map.get(item.get("Alternatif"))
-
-            # 💾 Simpan hasil terbaik & detail analisis
+            # 💾 Simpan riwayat berdasarkan keputusan seimbang utama (Hybrid ANP-TOPSIS)
             try:
-                best_result = max(result_data["ranking"], key=lambda x: x["Skor_Global"])
+                best_result = result_data["hybrid_ranking"][0]
 
                 new_history = AnalysisHistory(
                     user_id=session["user_id"],
                     filename=filename,
                     best_location=best_result["Alternatif"],
-                    best_score=best_result["Skor_Global"],
+                    best_score=float(best_result["Skor"]),
                     detail_json=json.dumps(result_data)
                 )
 
                 db.session.add(new_history)
                 db.session.commit()
-                print(f"✅ Riwayat berhasil disimpan untuk file: {filename}")
-
-                # — LOG: berhasil menjalankan analisis ANP
+                
                 write_log(
                     "INFO",
                     f"user:{session['user_id']}",
-                    "Analisis ANP",
-                    f"file={filename};path={filepath};history_id={new_history.id}"  # ⬅️ DITAMBAHKAN
+                    "Analisis ANP-TOPSIS",
+                    f"file={filename};path={filepath};history_id={new_history.id}"
                 )
 
             except Exception as e:
                 print(f"⚠️ Gagal menyimpan riwayat ke database: {e}")
-
                 write_log(
                     "ERROR",
                     f"user:{session.get('user_id')}",
@@ -462,19 +424,21 @@ def upload_file():
                     f"file={filename};error={e}"
                 )
 
-            # ✅ Tampilkan hasil analisis
+            # ✅ Tampilkan hasil terperinci ke layout geser di HTML (Menggunakan template subfolder user)
             return render_template(
                 "user/upload.html",
                 uploaded=True,
                 tables=[result_data["table_html"]],
-                chart=result_data.get("chart"),
-                results=result_data.get("ranking", []),
+                chart=result_data.get("chart_path"),
+                results_anp=result_data.get("pure_anp_ranking", []),
+                results_topsis=result_data.get("pure_topsis_ranking", []),
+                results_hybrid=result_data.get("hybrid_ranking", []),
                 info=result_data,
-                name=session["user_name"]
+                name=session["user_name"],
+                picture=session.get("user_picture")
             )
 
         except Exception as e:
-            # LOG: error saat memproses file / analisis
             write_log(
                 "ERROR",
                 f"user:{session.get('user_id')}",
@@ -484,9 +448,7 @@ def upload_file():
             flash(f"❌ Terjadi kesalahan saat membaca atau memproses file: {e}", "danger")
             return redirect(request.url)
 
-    # 🔹 GET request — tampilkan halaman kosong
-    return render_template("user/upload.html", uploaded=False, name=session["user_name"])
-
+    return render_template("user/upload.html", uploaded=False, name=session["user_name"], picture=session.get("user_picture"))
 
 # === HISTORY ROUTE ===
 @app.route("/history")
@@ -505,14 +467,11 @@ def history():
         histories=histories
     )
 
-# === CLEAR HISTORY ROUTE ===
 @app.route("/history/clear")
 def clear_history():
-    """Menghapus seluruh riwayat analisis milik user saat ini"""
     if "user_id" not in session:
         return redirect(url_for("login"))
 
-    # Hapus semua data history milik user yang login
     user_id = session["user_id"]
     AnalysisHistory.query.filter_by(user_id=user_id).delete()
     db.session.commit()
@@ -525,23 +484,26 @@ def view_history_detail(id):
     if "user_id" not in session:
         return redirect(url_for("login"))
 
-    history = AnalysisHistory.query.filter_by(id=id, user_id=session["user_id"]).first_or_404()
+    history_item = AnalysisHistory.query.filter_by(id=id, user_id=session["user_id"]).first_or_404()
     result_data = {}
     tables = []
     chart = None
-    results = []
+    results_anp, results_topsis, results_hybrid = [], [], []
 
     try:
-        if history.detail_json:
-            result_data = json.loads(history.detail_json)
-            results = result_data.get("ranking", [])
-            chart = result_data.get("chart")
+        if history_item.detail_json:
+            result_data = json.loads(history_item.detail_json)
+            results_anp = result_data.get("pure_anp_ranking", [])
+            results_topsis = result_data.get("pure_topsis_ranking", [])
+            results_hybrid = result_data.get("hybrid_ranking", [])
+            chart = result_data.get("chart_path")
+            
             if "table_html" in result_data:
                 tables = [result_data["table_html"]]
 
-        # 💡 Tambahkan fallback aman
-        if "weights" not in result_data:
-            result_data["weights"] = {}
+        if "weights_anp_global" not in result_data:
+            result_data["weights_anp_global"] = {}
+            
     except Exception as e:
         print(f"⚠️ Gagal memuat detail JSON: {e}")
 
@@ -550,12 +512,15 @@ def view_history_detail(id):
         uploaded=True,
         tables=tables,
         chart=chart,
-        results=results,
+        results_anp=results_anp,
+        results_topsis=results_topsis,
+        results_hybrid=results_hybrid,
         info=result_data,
-        name=session["user_name"]
+        name=session["user_name"],
+        picture=session.get("user_picture")
     )
 
-# --- FINANCE ROUTE ---
+# --- FINANCE ROUTE ===
 @app.route("/finance", methods=["GET", "POST"])
 def finance():
     if "user_id" not in session: return redirect(url_for("login"))
@@ -564,12 +529,10 @@ def finance():
         try:
             item_name = request.form.get("item_name")
             quantity = int(request.form.get("quantity"))
-            
             modal_satuan = float(request.form.get("modal")) 
             harga_jual_satuan = float(request.form.get("price"))
             
             untung_per_unit = harga_jual_satuan - modal_satuan
-            
             total_profit_transaksi = untung_per_unit * quantity
 
             new_sale = Sale(
@@ -589,8 +552,6 @@ def finance():
         return redirect(url_for("finance"))
 
     sales_data = Sale.query.filter_by(user_id=session["user_id"]).order_by(Sale.id.desc()).all()
-    
-
     total_profit = sum(s.profit for s in sales_data)
     
     return render_template(
@@ -631,17 +592,15 @@ def download_spk_pdf():
         html = render_template(
             "pdf_spk.html",
             name=session["user_name"],
-            results=result_data["ranking"],
+            results=result_data["hybrid_ranking"],
             info=result_data,
             table_data=df.to_html(classes="table table-bordered", index=False)
         )
 
-        # === Tambahkan CSS dari /static/css/pages/pdf_spk.css ===
         css_path = os.path.join(app.static_folder, "css", "pages", "pdf_spk.css")
         with open(css_path, "r", encoding="utf-8") as css_file:
             css_content = css_file.read()
 
-        # Satukan HTML dan CSS
         full_html = f"<style>{css_content}</style>{html}"
 
         pdf = create_pdf(full_html)
@@ -653,7 +612,6 @@ def download_spk_pdf():
     except Exception as e:
         flash(f"Gagal membuat PDF: {e}", "danger")
         return redirect(url_for("upload_file"))
-
 
 @app.route("/download/finance")
 def download_finance_pdf():
@@ -678,33 +636,22 @@ def finance_simulation():
 
     hasil_list = []
     detail_porsi = []
-    
-    # Simpan input user biar gak hilang (re-fill form)
     form_data = {"biaya_sewa": biaya_sewa, "menu": []}
 
     for i in range(1, 6):
         nama = request.form.get(f"nama_{i}")
-        
-        # Jika nama diisi, proses baris ini
         if nama:
             try:
                 harga = float(request.form.get(f"harga_{i}", 0))
                 modal = float(request.form.get(f"modal_{i}", 0))
-                
-                # Masukkan ke form_data buat ditampilkan lagi di input
                 form_data["menu"].append({"nama": nama, "harga": harga, "modal": modal})
 
-                # LOGIKA HITUNG
                 untung = harga - modal
-                
                 if untung <= 0:
-                    rekomendasi = "Rugi/Nihil" # Jika harga jual < modal
+                    rekomendasi = "Rugi/Nihil"
                 else:
-                    # Rumus BEP: Sewa / Untung per porsi (Dibulatkan ke atas)
                     porsi = math.ceil(biaya_sewa / untung)
-                    rekomendasi = porsi # Kita simpan angkanya saja
-                    
-                    # Tambah ke summary kalimat
+                    rekomendasi = porsi
                     if porsi > 0:
                         detail_porsi.append(f"{porsi:,} porsi {nama}")
 
@@ -712,13 +659,12 @@ def finance_simulation():
                     "nama": nama,
                     "harga": harga,
                     "modal": modal,
-                    "untung": untung,         # HTML butuh variabel ini
-                    "rekomendasi": rekomendasi # HTML butuh variabel ini
+                    "untung": untung,         
+                    "rekomendasi": rekomendasi 
                 })
             except ValueError:
                 continue
 
-    # Buat kalimat kesimpulan
     if detail_porsi and biaya_sewa > 0:
         summary = f"Untuk menutup biaya operasional Rp {biaya_sewa:,.0f}, Anda harus menjual (salah satu opsi): " + " ATAU ".join(detail_porsi) + "."
     elif biaya_sewa == 0:
@@ -726,7 +672,6 @@ def finance_simulation():
     else:
         summary = "Silakan input data biaya dan menu yang valid."
 
-    # Ambil data tabel bawah (Buku Kas) biar gak hilang saat reload
     sales_data = Sale.query.filter_by(user_id=session["user_id"]).all()
     total_profit = sum(s.profit for s in sales_data)
 
@@ -735,7 +680,7 @@ def finance_simulation():
         name=session["user_name"],
         sales=sales_data,
         total_profit=total_profit,
-        active_tab="simulasi", # Agar tab simulasi tetap terbuka
+        active_tab="simulasi",
         hasil_simulasi=hasil_list,
         summary=summary,
         form_data=form_data
@@ -743,15 +688,12 @@ def finance_simulation():
     
 @app.route("/finance/clear", methods=["GET"])
 def finance_clear():
-    """Reset form simulasi balik modal"""
     if "user_id" not in session:
         return redirect(url_for("login"))
 
-    # Hapus data form dari session jika ada
     if "form_data" in session:
         session.pop("form_data")
 
-    # Render ulang halaman simulasi dalam keadaan kosong
     return render_template(
         "user/finance.html",
         name=session["user_name"],
@@ -763,24 +705,9 @@ def finance_clear():
         form_data=None
     )
 
-def write_log(level, actor, action, detail=""):
-    try:
-        entry = SystemLog(
-            level=(level or "INFO").upper(),
-            actor=str(actor),
-            action=str(action),
-            detail=str(detail)
-        )
-        db.session.add(entry)
-        db.session.commit()
-        print("[LOGGED]", level, actor, action)
-    except Exception as e:
-        print("[LOG ERROR]", e)
-
 @app.route("/admin/download")
 @admin_required
 def admin_download_file():
-    # DEBUG: tunjukkan session saat route dipanggil
     print("\n=== DEBUG admin_download_file SESSION ===")
     try:
         for k in ["user_id","user_name","user_role"]:
@@ -791,7 +718,6 @@ def admin_download_file():
     raw_path = request.args.get("path")
     raw_file = request.args.get("file")
 
-    # jika hanya file param diberikan, bangun path dari UPLOAD_FOLDER
     if not raw_path and raw_file:
         raw_path = os.path.join(app.config["UPLOAD_FOLDER"], os.path.basename(raw_file))
 
@@ -803,13 +729,11 @@ def admin_download_file():
     abs_path = os.path.abspath(os.path.normpath(path))
     upload_dir = os.path.abspath(os.path.normpath(app.config["UPLOAD_FOLDER"]))
 
-    # DEBUG info path
     print(" raw_path:", raw_path)
     print(" decoded path:", path)
     print(" abs_path:", abs_path)
     print(" upload_dir:", upload_dir)
 
-    # keamanan: pastikan berada dalam upload_dir
     try:
         common = os.path.commonpath([abs_path, upload_dir])
     except Exception:
@@ -831,9 +755,6 @@ def admin_download_file():
         print("ERROR sending file:", e)
         flash(f"Gagal mengirim file: {e}", "danger")
         return redirect(url_for("admin_logs"))
-
-
-
 
 if __name__ == "__main__":
     with app.app_context():

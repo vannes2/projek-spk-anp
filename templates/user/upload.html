@@ -3,24 +3,78 @@
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>Upload Data | SPK ANP</title>
+    <title>Upload Data & Hasil Analisis | SPK ANP-TOPSIS</title>
 
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/main.css') }}">
+    
+    <style>
+        /* Desain Kustom untuk Slider Geser Hasil Peringkat di HP */
+        .mobile-swipe-container {
+            display: flex;
+            overflow-x: auto;
+            gap: 1rem;
+            padding-bottom: 1rem;
+            scroll-snap-type: x mandatory;
+            -webkit-overflow-scrolling: touch; /* Kinetic scrolling iOS */
+            scrollbar-width: none; /* Firefox hide scrollbar */
+            cursor: grab; /* Kursor tangan genggam di desktop */
+            user-select: none; /* Mencegah teks terseleksi saat diseret */
+        }
+        
+        .mobile-swipe-container:active {
+            cursor: grabbing; /* Kursor saat diseret */
+        }
+        
+        .mobile-swipe-container::-webkit-scrollbar {
+            display: none; /* Chrome/Safari/Opera hide scrollbar */
+        }
+
+        .swipe-card {
+            flex: 0 0 85%; /* Sedikit mengintip kartu berikutnya sebagai petunjuk visual di HP */
+            max-width: 340px;
+            scroll-snap-align: start;
+            transition: transform 0.2s ease, box-shadow 0.2s ease;
+        }
+
+        @media (min-width: 768px) {
+            .swipe-card {
+                flex: 1 1 0; /* Normal flex grid pada layar desktop jika tidak ingin digeser di desktop */
+                max-width: none;
+            }
+        }
+
+        /* Jika di desktop ingin TETAP bisa digeser dan tidak pecah ke grid, aktifkan class pembatas ini */
+        @media (min-width: 768px) {
+            .desktop-scroll-active .swipe-card {
+                flex: 0 0 320px; /* Pertahankan ukuran kartu agar tetap bisa digeser ke samping di desktop */
+            }
+        }
+
+        /* Hover effect untuk kartu peringkat */
+        .swipe-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 20px rgba(0,0,0,0.08) !important;
+        }
+    </style>
 </head>
 
-<body class="page-upload">
+<body class="page-upload bg-light">
 
-    <nav class="navbar navbar-expand-lg">
+    <nav class="navbar navbar-expand-lg navbar-dark bg-dark shadow-sm">
         <div class="container">
-            <a class="navbar-brand fw-bold text-white" href="/dashboard">SPK ANP</a>
+            <a class="navbar-brand fw-bold text-white" href="/dashboard">
+                <i class="fa-solid fa-square-poll-vertical me-2"></i>SPK ANP-TOPSIS
+            </a>
             <div class="d-flex align-items-center">
                 <span class="text-white me-3 d-none d-lg-block">Halo, {{ name }}</span>
                 {% if picture %}
-                <img src="{{ picture }}" class="rounded-circle" width="35">
+                <img src="{{ picture }}" class="rounded-circle border border-2 border-light" width="35" height="35" alt="Avatar">
                 {% endif %}
-                <a href="{{ url_for('logout') }}" class="btn btn-outline-light btn-sm ms-2">Logout</a>
+                <a href="{{ url_for('logout') }}" class="btn btn-outline-light btn-sm ms-2">
+                    <i class="fa-solid fa-right-from-bracket"></i> Logout
+                </a>
             </div>
         </div>
     </nav>
@@ -28,35 +82,40 @@
     <main class="container py-5">
         <div class="text-center mb-5">
             <h1 class="fw-bold text-dark">Analisis Pemilihan Lokasi UMKM</h1>
-            <p class="text-muted">Unggah file Excel atau CSV berisi data alternatif untuk analisis otomatis menggunakan metode ANP.</p>
+            <p class="text-muted col-md-8 mx-auto">Unggah file Excel atau CSV berisi data kriteria alternatif untuk dianalisis secara komparatif menggunakan tiga engine sekaligus: Pure ANP, Pure TOPSIS, dan Hybrid ANP-TOPSIS.</p>
 
             <div class="mt-4">
-                <a href="{{ url_for('static', filename='template_umkm.xlsx') }}" class="btn btn-outline-success shadow-sm px-4 py-2">
-                    <i class="fas fa-file-excel me-2"></i> Unduh Template Excel
+                <a href="{{ url_for('static', filename='template_umkm.xlsx') }}" class="btn btn-outline-success shadow-sm px-4 py-2 fw-semibold">
+                    <i class="fas fa-file-excel me-2"></i> Unduh Template Excel Resmi
                 </a>
-                <p class="small text-muted mt-2">*Gunakan template ini agar nama kolom dan format data sesuai dengan sistem.</p>
+                <p class="small text-muted mt-2">*Pastikan nama kolom data (C1 s.d C5) mengikuti standar template untuk pemrosesan otomatis.</p>
             </div>
 
+            <!-- Menampilkan Flash Message jika ada notifikasi dari flask -->
             {% with messages = get_flashed_messages() %}
             {% if messages %}
             {% for message in messages %}
-            <div class="alert alert-warning mt-3 w-50 mx-auto shadow-sm border-0">{{ message }}</div>
+            <div class="alert alert-warning mt-3 w-50 mx-auto shadow-sm border-0 alert-dismissible fade show" role="alert">
+                {{ message }}
+                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+            </div>
             {% endfor %}
             {% endif %}
             {% endwith %}
         </div>
 
+        <!-- Form Pemrosesan File Excel / CSV -->
         <div class="row justify-content-center">
             <div class="col-md-6">
-                <div class="card p-4 shadow-sm border-0">
+                <div class="card p-4 shadow-sm border-0 rounded-3">
                     <form action="/upload" method="POST" enctype="multipart/form-data">
-                        <div class="mb-3">
-                            <label for="file" class="form-label fw-semibold">Pilih File Data (.xlsx / .csv)</label>
-                            <input class="form-control form-control-lg" type="file" name="file" accept=".xlsx,.csv" required>
+                        <div class="mb-4">
+                            <label for="file" class="form-label fw-bold text-secondary">Pilih File Data Alternatif (.xlsx / .csv)</label>
+                            <input class="form-control form-control-lg" type="file" name="file" id="file" accept=".xlsx,.csv" required>
                         </div>
                         <div class="d-grid">
-                            <button type="submit" class="btn btn-primary btn-lg">
-                                <i class="fas fa-rocket me-2"></i> Analisis Sekarang
+                            <button type="submit" class="btn btn-primary btn-lg fw-bold shadow">
+                                <i class="fas fa-rocket me-2"></i> Jalankan Engine SPK
                             </button>
                         </div>
                     </form>
@@ -68,57 +127,145 @@
         <hr class="my-5">
 
         <div class="row">
+            <!-- Kolom Kiri: Visualisasi Grafik Analisis & Ringkasan Solusi -->
             <div class="col-lg-8 mb-4">
-                <div class="card shadow-sm border-0 h-100">
-                    <div class="card-header bg-white fw-bold d-flex justify-content-between align-items-center border-bottom">
-                        <span>📊 Grafik & Tabel Peringkat Alternatif</span>
+                <div class="card shadow-sm border-0 h-100 rounded-3">
+                    <div class="card-header bg-white fw-bold d-flex justify-content-between align-items-center border-bottom py-3">
+                        <span class="text-primary"><i class="fa-solid fa-chart-bar me-2"></i>Komparasi Grafik Multi-Engine</span>
                         <div>
-                            <a href="{{ url_for('download_spk_pdf') }}" class="btn btn-outline-danger btn-sm me-2">
-                                <i class="fas fa-file-pdf"></i> Unduh PDF
+                            <a href="{{ url_for('download_spk_pdf') }}" class="btn btn-outline-danger btn-sm me-2 fw-semibold">
+                                <i class="fas fa-file-pdf"></i> Unduh Laporan PDF
                             </a>
-                            <span class="badge bg-primary">ANP Analysis</span>
+                            <span class="badge bg-success py-2 px-3">Status: Success</span>
                         </div>
                     </div>
 
-                    <div class="card-body">
+                    <div class="card-body d-flex flex-column justify-content-between">
                         {% if chart %}
-                        <div class="text-center mb-4">
-                            <img src="{{ chart }}" alt="Grafik ANP" class="img-fluid rounded shadow-sm" style="max-height: 360px; object-fit: contain;">
+                        <div class="text-center mb-4 p-2 border rounded-3 bg-white shadow-inner">
+                            <img src="{{ url_for('static', filename=chart.split('static/')[-1]) if 'static/' in chart else chart }}" alt="Grafik Komparasi SPK" class="img-fluid rounded" style="max-height: 380px; width: 100%; object-fit: contain;">
                         </div>
                         {% else %}
-                        <p class="text-muted text-center">Grafik tidak tersedia.</p>
+                        <div class="text-center py-5">
+                            <p class="text-muted"><i class="fa-regular fa-image fa-3x mb-3 text-secondary"></i><br>Grafik komparatif tidak dapat dimuat.</p>
+                        </div>
                         {% endif %}
 
-                        <div class="alert alert-success mt-4 text-start shadow-sm border-0">
-                            <h5 class="fw-bold mb-2"><i class="fas fa-lightbulb me-2"></i>Kesimpulan:</h5>
-                            <p class="mb-0">{{ info.summary }}</p>
+                        <div class="alert alert-success mt-auto text-start border-0 shadow-sm p-3">
+                            <h5 class="fw-bold mb-2"><i class="fas fa-lightbulb me-2 text-warning animate-bounce"></i>Rekomendasi Keputusan Utama:</h5>
+                            <div class="row small g-2 mt-2">
+                                <div class="col-sm-4 border-end">
+                                    <span class="text-muted d-block">Best Hybrid (ANP-TOPSIS)</span>
+                                    <strong class="text-dark">{{ info.summary.best_hybrid }}</strong>
+                                </div>
+                                <div class="col-sm-4 border-end ps-md-3">
+                                    <span class="text-muted d-block">Best Pure ANP</span>
+                                    <strong class="text-dark">{{ info.summary.best_pure_anp }}</strong>
+                                </div>
+                                <div class="col-sm-4 ps-md-3">
+                                    <span class="text-muted d-block">Best Pure TOPSIS</span>
+                                    <strong class="text-dark">{{ info.summary.best_pure_topsis }}</strong>
+                                </div>
+                            </div>
                         </div>
                     </div>
                 </div>
             </div>
 
             <div class="col-lg-4 mb-4">
-                <div class="card shadow-sm border-0 h-100">
-                    <div class="card-header bg-white fw-bold border-bottom">🏆 Hasil Peringkat Alternatif</div>
-                    <div class="card-body p-0">
-                        <table class="table table-hover table-striped mb-0 text-center">
-                            <thead class="table-light">
-                                <tr>
-                                    <th>#</th>
-                                    <th>Alternatif</th>
-                                    <th>Skor</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {% for r in results %}
-                                <tr class="{{ 'table-success fw-bold' if loop.index == 1 else '' }}">
-                                    <td>{{ loop.index }}</td>
-                                    <td>{{ r.Alternatif }}</td>
-                                    <td>{{ "%.4f"|format(r.Skor_Global) }}</td>
-                                </tr>
-                                {% endfor %}
-                            </tbody>
-                        </table>
+                <div class="card shadow-sm border-0 h-100 rounded-3">
+                    <div class="card-header bg-white fw-bold border-bottom py-3">
+                        <i class="fa-solid fa-trophy me-2 text-warning"></i> Hasil Peringkat Alternatif 
+                        <span class="small text-muted d-block fw-normal mt-1 d-md-none"><i class="fa-solid fa-right-left me-1"></i> Geser layar ke samping untuk berganti metode</span>
+                        <span class="small text-muted d-none d-md-block fw-normal mt-1"><i class="fa-solid fa-hand-pointer me-1"></i> Klik dan seret (drag) untuk berganti metode</span>
+                    </div>
+
+                    <div class="card-body">
+                        <!-- Container dengan Scroll Touch-Gesture & Desktop Drag -->
+                        <div class="mobile-swipe-container desktop-scroll-active" id="swipeContainer">
+
+                            <!-- KARTU 1: PENGUKURAN ANP MURNI -->
+                            <div class="card border swipe-card shadow-sm">
+                                <div class="card-header bg-primary text-white fw-bold text-center py-2">
+                                    Pure ANP (Eigenvector)
+                                </div>
+                                <div class="card-body p-0">
+                                    <table class="table table-hover table-striped mb-0 text-center small">
+                                        <thead class="table-light">
+                                            <tr>
+                                                <th>#</th>
+                                                <th>Alternatif</th>
+                                                <th>Skor</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {% for r in results_anp %}
+                                            <tr class="{{ 'table-success fw-bold text-success' if loop.index == 1 else '' }}">
+                                                <td>{{ loop.index }}</td>
+                                                <td>{{ r.Alternatif }}</td>
+                                                <td class="font-monospace">{{ "%.4f"|format(r.Skor|float) }}</td>
+                                            </tr>
+                                            {% endfor %}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+
+                            <!-- KARTU 2: PENGUKURAN TOPSIS MURNI -->
+                            <div class="card border swipe-card shadow-sm">
+                                <div class="card-header bg-success text-white fw-bold text-center py-2">
+                                    Pure TOPSIS (Equal W)
+                                </div>
+                                <div class="card-body p-0">
+                                    <table class="table table-hover table-striped mb-0 text-center small">
+                                        <thead class="table-light">
+                                            <tr>
+                                                <th>#</th>
+                                                <th>Alternatif</th>
+                                                <th>Skor</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {% for r in results_topsis %}
+                                            <tr class="{{ 'table-success fw-bold text-success' if loop.index == 1 else '' }}">
+                                                <td>{{ loop.index }}</td>
+                                                <td>{{ r.Alternatif }}</td>
+                                                <td class="font-monospace">{{ "%.4f"|format(r.Skor|float) }}</td>
+                                            </tr>
+                                            {% endfor %}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+
+                            <!-- KARTU 3: MODEL HYBRID ANP-TOPSIS -->
+                            <div class="card border swipe-card shadow-sm border-primary">
+                                <div class="card-header bg-dark text-white fw-bold text-center py-2 d-flex justify-content-center align-items-center">
+                                    <span class="badge bg-warning text-dark me-2 small">Main</span> Hybrid ANP-TOPSIS
+                                </div>
+                                <div class="card-body p-0">
+                                    <table class="table table-hover table-striped mb-0 text-center small">
+                                        <thead class="table-light">
+                                            <tr>
+                                                <th>#</th>
+                                                <th>Alternatif</th>
+                                                <th>Skor</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {% for r in results_hybrid %}
+                                            <tr class="{{ 'table-success fw-bold text-success' if loop.index == 1 else '' }}">
+                                                <td>{{ loop.index }}</td>
+                                                <td>{{ r.Alternatif }}</td>
+                                                <td class="font-monospace">{{ "%.4f"|format(r.Skor|float) }}</td>
+                                            </tr>
+                                            {% endfor %}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+
+                        </div> <!-- /mobile-swipe-container -->
                     </div>
                 </div>
             </div>
@@ -126,62 +273,73 @@
 
         <div class="row mt-4">
             <div class="col-md-12">
-                <div class="card shadow-sm border-0">
-                    <div class="card-header bg-white fw-bold d-flex justify-content-between align-items-center">
-                        <span>📂 Detail Data & Perhitungan</span>
+                <div class="card shadow-sm border-0 rounded-3">
+                    <div class="card-header bg-white fw-bold d-flex justify-content-between align-items-center py-3">
+                        <span class="text-secondary"><i class="fa-solid fa-folder-open me-2"></i>Dokumentasi Metodologis &amp; Perhitungan Matriks</span>
                         <button class="btn btn-sm btn-outline-secondary" type="button" data-bs-toggle="collapse" data-bs-target="#detailSection">
-                            Tampilkan / Sembunyikan
+                            Tampilkan / Sembunyikan Detail
                         </button>
                     </div>
                     <div class="collapse show" id="detailSection">
                         <div class="card-body">
-                            <h6 class="fw-bold text-primary mb-3">Data Awal (Dari File Anda)</h6>
-                            <div class="table-responsive mb-4" style="max-height: 300px;">
+                            <h6 class="fw-bold text-primary mb-3">Matriks Keputusan Awal</h6>
+                            <div class="table-responsive mb-4" style="max-height: 250px; overflow-y: auto;">
                                 {% for table in tables %}
                                     {{ table|safe }}
                                 {% endfor %}
                             </div>
 
                             <div class="row">
-                                <div class="col-md-6">
-                                    <h6 class="fw-bold text-primary mb-3">Bobot Kriteria (ANP)</h6>
-                                    <table class="table table-sm table-bordered">
+                                <!-- Pembobotan Global Limit Matrix (Kriteria) -->
+                                <div class="col-md-6 mb-3">
+                                    <h6 class="fw-bold text-primary mb-3"><i class="fa-solid fa-chart-pie me-1"></i>Bobot Global Kriteria (ANP Limit Matrix)</h6>
+                                    <table class="table table-sm table-bordered text-center align-middle">
                                         <thead class="table-light">
-                                            <tr><th>Kriteria</th><th>Bobot Akhir</th></tr>
+                                            <tr>
+                                                <th>Kode Kriteria</th>
+                                                <th>Definisi Variabel</th>
+                                                <th>Bobot Prioritas Global</th>
+                                            </tr>
                                         </thead>
                                         <tbody>
-                                            {% for key, value in info.weights.items() %}
-                                            <tr><td>{{ key }}</td><td>{{ "%.4f"|format(value) }}</td></tr>
+                                            {% set kriteria_labels = {'C1': 'Biaya Sewa Lokasi', 'C2': 'Potensi Volume Penjualan', 'C3': 'Ketersediaan Bahan Baku', 'C4': 'Fasilitas Penunjang', 'C5': 'Tingkat Kepadatan Persaingan'} %}
+                                            {% for key, value in info.weights_anp_global.items() %}
+                                            <tr>
+                                                <td class="fw-bold text-secondary">{{ key }}</td>
+                                                <td class="text-start">{{ kriteria_labels.get(key, 'Kriteria Kustom') }}</td>
+                                                <td class="font-monospace fw-bold text-dark">{{ "%.4f"|format(value|float) }}</td>
+                                            </tr>
                                             {% endfor %}
                                         </tbody>
                                     </table>
                                 </div>
 
-                                <div class="col-md-6">
-                                    <h6 class="fw-bold text-primary mb-3">Status Validasi (Consistency Ratio)</h6>
-                                    <div class="card bg-light border-0 p-3">
-                                        <div class="d-flex justify-content-between align-items-center mb-2">
-                                            <span class="fw-bold text-dark">Matriks Kriteria (Bab 3)</span>
-                                            {% if info.consistency_report.CR_Criteria_Matrix < 0.1 %}
-                                                <span class="badge bg-success">Valid (CR: {{ "%.4f"|format(info.consistency_report.CR_Criteria_Matrix) }})</span>
+                                <!-- Laporan Uji Konsistensi (CR & CI) -->
+                                <div class="col-md-6 mb-3">
+                                    <h6 class="fw-bold text-primary mb-3"><i class="fa-solid fa-calculator me-1"></i>Analisis Konsistensi Matematis (CR)</h6>
+                                    <div class="card bg-light border-0 p-3 rounded-3">
+                                        <div class="d-flex justify-content-between align-items-center mb-3">
+                                            <span class="fw-bold text-dark">Matriks Perbandingan Berpasangan</span>
+                                            {% if info.consistency_report.CR_Criteria_Matrix|float < 0.1 %}
+                                                <span class="badge bg-success">Konsisten (CR: {{ "%.4f"|format(info.consistency_report.CR_Criteria_Matrix|float) }})</span>
                                             {% else %}
-                                                <span class="badge bg-warning text-dark">CR Tinggi: {{ "%.4f"|format(info.consistency_report.CR_Criteria_Matrix) }}</span>
+                                                <span class="badge bg-danger text-white">CR Tidak Konsisten (>0.1): {{ "%.4f"|format(info.consistency_report.CR_Criteria_Matrix|float) }}</span>
                                             {% endif %}
                                         </div>
                                         
-                                        <p class="mb-1 small text-muted fw-bold mt-2">Konsistensi Alternatif per Kriteria:</p>
+                                        <p class="mb-1 small text-muted fw-bold">Uji Konsistensi Dependensi &amp; Alternatif Lokal:</p>
                                         <table class="table table-sm table-borderless small mb-0">
                                             <tbody>
                                                 {% for key, val in info.consistency_report.items() %}
                                                     {% if key.startswith('CR_') and key != 'CR_Criteria_Matrix' %}
                                                     <tr>
-                                                        <td class="ps-0">{{ key|replace('CR_', 'Kriteria ') }}</td>
-                                                        <td class="text-end font-monospace">{{ "%.4f"|format(val) }}</td>
+                                                        <td class="ps-0">{{ key|replace('CR_Alt_', 'Matriks Alternatif ') | replace('CR_Inner_', 'Matriks Dependensi ') }}</td>
+                                                        <td class="text-end font-monospace">{{ "%.4f"|format(val|float) }}</td>
                                                         <td class="text-end">
-                                                            {% if val < 0.1 %}
-                                                                <span class="text-success fw-bold">✔ OK</span>
+                                                            {% if val|float < 0.1 %}
+                                                                <span class="badge bg-success"><i class="fa-solid fa-circle-check"></i> Valid</span>
                                                             {% else %}
-                                                                <span class="text-danger fw-bold">⚠ Cek</span>
+                                                                <span class="badge bg-warning text-dark"><i class="fa-solid fa-circle-exclamation"></i> Tinjau</span>
                                                             {% endif %}
                                                         </td>
                                                     </tr>
@@ -189,6 +347,9 @@
                                                 {% endfor %}
                                             </tbody>
                                         </table>
+                                        <div class="mt-2 small text-muted border-top pt-2">
+                                            <em>*Sesuai ketentuan Saaty, nilai Consistency Ratio (CR) < 0.1 menandakan perbandingan berpasangan sah/konsisten.</em>
+                                        </div>
                                     </div>
                                 </div>
                             </div>
@@ -200,12 +361,49 @@
         {% endif %}
     </main>
 
-    <footer class="py-4 bg-light mt-5">
+    <footer class="py-4 bg-white mt-5 border-top">
         <div class="container text-center">
-            <p class="text-muted mb-0 small">© 2025 SPK ANP | Sistem Pendukung Keputusan Pemilihan Lokasi UMKM</p>
+            <p class="text-muted mb-0 small">© 2026 SPK ANP-TOPSIS | Sistem Pendukung Keputusan Pemilihan Lokasi UMKM Multi-Engine v2.0</p>
         </div>
     </footer>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+    
+    <!-- Script untuk mengaktifkan fitur drag-to-scroll di desktop menggunakan mouse -->
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            const slider = document.getElementById('swipeContainer');
+            if (!slider) return;
+
+            let isDown = false;
+            let startX;
+            let scrollLeft;
+
+            slider.addEventListener('mousedown', (e) => {
+                isDown = true;
+                slider.style.scrollSnapType = 'none'; // Matikan snap sementara agar tarikan mouse terasa mulus
+                startX = e.pageX - slider.offsetLeft;
+                scrollLeft = slider.scrollLeft;
+            });
+
+            slider.addEventListener('mouseleave', () => {
+                isDown = false;
+                slider.style.scrollSnapType = 'x mandatory'; // Aktifkan snap kembali saat mouse pergi
+            });
+
+            slider.addEventListener('mouseup', () => {
+                isDown = false;
+                slider.style.scrollSnapType = 'x mandatory'; // Aktifkan snap kembali setelah selesai drag
+            });
+
+            slider.addEventListener('mousemove', (e) => {
+                if (!isDown) return;
+                e.preventDefault();
+                const x = e.pageX - slider.offsetLeft;
+                const walk = (x - startX) * 1.5; // Sensitivitas kecepatan seret (bisa disesuaikan)
+                slider.scrollLeft = scrollLeft - walk;
+            });
+        });
+    </script>
 </body>
 </html>
