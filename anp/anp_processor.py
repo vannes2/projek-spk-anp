@@ -268,7 +268,7 @@ def run_anp_analysis(df):
         "C5": [c for c in df.columns if "C5" in c.upper() or "SAING" in c.upper()]
     }
     for k, v in criteria_map.items():
-        if not v: return {"error": f"Kombor Kriteria {k} tidak ditemukan."}
+        if not v: return {"error": f"Kolom Kriteria {k} tidak ditemukan."}
 
     # Konversi Data Mentah ke Skala Ordinal (1-5)
     df_scores = pd.DataFrame()
@@ -277,6 +277,18 @@ def run_anp_analysis(df):
         df_scores[c] = df[col_name].apply(lambda x: smart_score(c, x))
 
     alts = df[df.columns[0]].tolist()
+
+    # Ekstraksi Nama Alternatif (Dinamis dari File Excel)
+    nama_alts = [""] * len(alts)
+    name_col = next((c for c in df.columns if "nama" in str(c).lower()), None)
+    if name_col:
+        # Jika ketemu kolom berunsur kata "nama"
+        nama_alts = df[name_col].fillna("").astype(str).tolist()
+    else:
+        # Fallback: Ambil kolom ke-2 (index 1) jika posisinya sebelum kriteria C1
+        first_crit_col = criteria_map["C1"][0]
+        if df.columns.get_loc(first_crit_col) > 1:
+            nama_alts = df[df.columns[1]].fillna("").astype(str).tolist()
 
     # --- JALANKAN PROSES PEMBOBOTAN LIMIT MATRIX ANP ---
     global_weights, criteria_report, w_main = get_criteria_limit_matrix_weights()
@@ -334,6 +346,7 @@ def run_anp_analysis(df):
 
         pure_anp_ranking.append({
             "Alternatif": alts[i],
+            "Nama": nama_alts[i],
             "Skor": skor_anp,
             "Skor_ANP": skor_anp # Fallback kompatibilitas untuk template PDF lama
         })
@@ -351,6 +364,7 @@ def run_anp_analysis(df):
     for i in range(len(alts)):
         pure_topsis_ranking.append({
             "Alternatif": alts[i],
+            "Nama": nama_alts[i],
             "Skor": float(pure_topsis_scores[i]),
             "Skor_TOPSIS": float(pure_topsis_scores[i]) # Fallback kompatibilitas untuk template PDF lama
         })
@@ -384,6 +398,7 @@ def run_anp_analysis(df):
 
         hybrid_ranking.append({
             "Alternatif": alts[i],
+            "Nama": nama_alts[i],
             "Skor": skor_hybrid,
             "Skor_Hybrid": skor_hybrid, # Fallback kompatibilitas
             "Skor_Global": skor_hybrid  # Fallback utama pembacaan template pdf_spk.html Anda!
@@ -429,10 +444,22 @@ def run_anp_analysis(df):
     # Format Teks Kesimpulan Dinamis untuk UI
     best_hybrid = hybrid_ranking[0]
     best_anp = pure_anp_ranking[0]
-    summary_str = (
-        f"Rekomendasi Utama: {best_hybrid['Alternatif']} dengan Skor Hybrid {best_hybrid['Skor']:.4f} (Metode Hybrid ANP-TOPSIS). "
-        f"Berdasarkan Pure ANP, pilihan terbaik adalah {best_anp['Alternatif']} dengan Nilai Prioritas {best_anp['Skor']:.4f}."
-    )
+    best_topsis = pure_topsis_ranking[0]
+
+    # Menambahkan nama asli pada kesimpulan jika namanya berhasil diekstrak
+    hybrid_name_str = f" ({best_hybrid['Nama']})" if best_hybrid['Nama'] else ""
+    anp_name_str = f" ({best_anp['Nama']})" if best_anp['Nama'] else ""
+    topsis_name_str = f" ({best_topsis['Nama']})" if best_topsis['Nama'] else ""
+    
+    summary_dict = {
+        "best_hybrid": f"{best_hybrid['Alternatif']}{hybrid_name_str}",
+        "best_pure_anp": f"{best_anp['Alternatif']}{anp_name_str}",
+        "best_pure_topsis": f"{best_topsis['Alternatif']}{topsis_name_str}",
+        "full_text": (
+            f"Rekomendasi Utama: {best_hybrid['Alternatif']}{hybrid_name_str} dengan Skor Hybrid {best_hybrid['Skor']:.4f} (Metode Hybrid ANP-TOPSIS). "
+            f"Berdasarkan Pure ANP, pilihan terbaik adalah {best_anp['Alternatif']}{anp_name_str} dengan Nilai Prioritas {best_anp['Skor']:.4f}."
+        )
+    }
 
     return {
         "ranking": hybrid_ranking,  # Fallback kompatibilitas penting untuk endpoint generator PDF
@@ -444,5 +471,5 @@ def run_anp_analysis(df):
         "weights_anp_global": global_weights,
         "consistency_report": full_report,
         "consistency_ratio": criteria_report["CR_Criteria_Matrix"],
-        "summary": summary_str
+        "summary": summary_dict
     }

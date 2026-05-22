@@ -155,7 +155,7 @@
                                         <thead class="table-light">
                                             <tr>
                                                 <th>#</th>
-                                                <th>Alternatif</th>
+                                                <th class="text-start">Alternatif</th>
                                                 <th>Skor</th>
                                             </tr>
                                         </thead>
@@ -163,7 +163,13 @@
                                             {% for r in results_hybrid %}
                                             <tr class="{{ 'table-success fw-bold text-success' if loop.index == 1 else '' }}">
                                                 <td>{{ loop.index }}</td>
-                                                <td>{{ r.Alternatif }}</td>
+                                                <td class="text-start">
+                                                    {% if r.Nama %}
+                                                        <span class="badge bg-secondary me-1">{{ r.Alternatif }}</span> {{ r.Nama }}
+                                                    {% else %}
+                                                        {{ r.Alternatif }}
+                                                    {% endif %}
+                                                </td>
                                                 <td class="font-monospace">{{ "%.4f"|format(r.Skor|float) }}</td>
                                             </tr>
                                             {% endfor %}
@@ -182,7 +188,7 @@
                                         <thead class="table-light">
                                             <tr>
                                                 <th>#</th>
-                                                <th>Alternatif</th>
+                                                <th class="text-start">Alternatif</th>
                                                 <th>Skor</th>
                                             </tr>
                                         </thead>
@@ -190,7 +196,13 @@
                                             {% for r in results_anp %}
                                             <tr class="{{ 'table-success fw-bold text-success' if loop.index == 1 else '' }}">
                                                 <td>{{ loop.index }}</td>
-                                                <td>{{ r.Alternatif }}</td>
+                                                <td class="text-start">
+                                                    {% if r.Nama %}
+                                                        <span class="badge bg-secondary me-1">{{ r.Alternatif }}</span> {{ r.Nama }}
+                                                    {% else %}
+                                                        {{ r.Alternatif }}
+                                                    {% endif %}
+                                                </td>
                                                 <td class="font-monospace">{{ "%.4f"|format(r.Skor|float) }}</td>
                                             </tr>
                                             {% endfor %}
@@ -209,7 +221,7 @@
                                         <thead class="table-light">
                                             <tr>
                                                 <th>#</th>
-                                                <th>Alternatif</th>
+                                                <th class="text-start">Alternatif</th>
                                                 <th>Skor</th>
                                             </tr>
                                         </thead>
@@ -217,7 +229,13 @@
                                             {% for r in results_topsis %}
                                             <tr class="{{ 'table-success fw-bold text-success' if loop.index == 1 else '' }}">
                                                 <td>{{ loop.index }}</td>
-                                                <td>{{ r.Alternatif }}</td>
+                                                <td class="text-start">
+                                                    {% if r.Nama %}
+                                                        <span class="badge bg-secondary me-1">{{ r.Alternatif }}</span> {{ r.Nama }}
+                                                    {% else %}
+                                                        {{ r.Alternatif }}
+                                                    {% endif %}
+                                                </td>
                                                 <td class="font-monospace">{{ "%.4f"|format(r.Skor|float) }}</td>
                                             </tr>
                                             {% endfor %}
