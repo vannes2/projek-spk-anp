@@ -10,50 +10,12 @@
     <link rel="stylesheet" href="{{ url_for('static', filename='css/main.css') }}">
     
     <style>
-        /* Desain Kustom untuk Slider Geser Hasil Peringkat di HP */
-        .mobile-swipe-container {
-            display: flex;
-            overflow-x: auto;
-            gap: 1rem;
-            padding-bottom: 1rem;
-            scroll-snap-type: x mandatory;
-            -webkit-overflow-scrolling: touch; /* Kinetic scrolling iOS */
-            scrollbar-width: none; /* Firefox hide scrollbar */
-            cursor: grab; /* Kursor tangan genggam di desktop */
-            user-select: none; /* Mencegah teks terseleksi saat diseret */
-        }
-        
-        .mobile-swipe-container:active {
-            cursor: grabbing; /* Kursor saat diseret */
-        }
-        
-        .mobile-swipe-container::-webkit-scrollbar {
-            display: none; /* Chrome/Safari/Opera hide scrollbar */
-        }
-
-        .swipe-card {
-            flex: 0 0 85%; /* Sedikit mengintip kartu berikutnya sebagai petunjuk visual di HP */
-            max-width: 340px;
-            scroll-snap-align: start;
+        /* CSS kustom untuk slider telah dihapus agar tampilan menjadi vertikal / grid bawaan */
+        /* Efek hover untuk kartu peringkat tetap dipertahankan */
+        .ranking-card {
             transition: transform 0.2s ease, box-shadow 0.2s ease;
         }
-
-        @media (min-width: 768px) {
-            .swipe-card {
-                flex: 1 1 0; /* Normal flex grid pada layar desktop jika tidak ingin digeser di desktop */
-                max-width: none;
-            }
-        }
-
-        /* Jika di desktop ingin TETAP bisa digeser dan tidak pecah ke grid, aktifkan class pembatas ini */
-        @media (min-width: 768px) {
-            .desktop-scroll-active .swipe-card {
-                flex: 0 0 320px; /* Pertahankan ukuran kartu agar tetap bisa digeser ke samping di desktop */
-            }
-        }
-
-        /* Hover effect untuk kartu peringkat */
-        .swipe-card:hover {
+        .ranking-card:hover {
             transform: translateY(-2px);
             box-shadow: 0 10px 20px rgba(0,0,0,0.08) !important;
         }
@@ -172,74 +134,19 @@
                 </div>
             </div>
 
+            <!-- Kolom Kanan: Hasil Peringkat Alternatif (Vertikal) -->
             <div class="col-lg-4 mb-4">
                 <div class="card shadow-sm border-0 h-100 rounded-3">
                     <div class="card-header bg-white fw-bold border-bottom py-3">
                         <i class="fa-solid fa-trophy me-2 text-warning"></i> Hasil Peringkat Alternatif 
-                        <span class="small text-muted d-block fw-normal mt-1 d-md-none"><i class="fa-solid fa-right-left me-1"></i> Geser layar ke samping untuk berganti metode</span>
-                        <span class="small text-muted d-none d-md-block fw-normal mt-1"><i class="fa-solid fa-hand-pointer me-1"></i> Klik dan seret (drag) untuk berganti metode</span>
                     </div>
 
                     <div class="card-body">
-                        <!-- Container dengan Scroll Touch-Gesture & Desktop Drag -->
-                        <div class="mobile-swipe-container desktop-scroll-active" id="swipeContainer">
+                        <!-- Container dengan Flex Column agar turun ke bawah secara vertikal -->
+                        <div class="d-flex flex-column gap-3">
 
-                            <!-- KARTU 1: PENGUKURAN ANP MURNI -->
-                            <div class="card border swipe-card shadow-sm">
-                                <div class="card-header bg-primary text-white fw-bold text-center py-2">
-                                    Pure ANP (Eigenvector)
-                                </div>
-                                <div class="card-body p-0">
-                                    <table class="table table-hover table-striped mb-0 text-center small">
-                                        <thead class="table-light">
-                                            <tr>
-                                                <th>#</th>
-                                                <th>Alternatif</th>
-                                                <th>Skor</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody>
-                                            {% for r in results_anp %}
-                                            <tr class="{{ 'table-success fw-bold text-success' if loop.index == 1 else '' }}">
-                                                <td>{{ loop.index }}</td>
-                                                <td>{{ r.Alternatif }}</td>
-                                                <td class="font-monospace">{{ "%.4f"|format(r.Skor|float) }}</td>
-                                            </tr>
-                                            {% endfor %}
-                                        </tbody>
-                                    </table>
-                                </div>
-                            </div>
-
-                            <!-- KARTU 2: PENGUKURAN TOPSIS MURNI -->
-                            <div class="card border swipe-card shadow-sm">
-                                <div class="card-header bg-success text-white fw-bold text-center py-2">
-                                    Pure TOPSIS (Equal W)
-                                </div>
-                                <div class="card-body p-0">
-                                    <table class="table table-hover table-striped mb-0 text-center small">
-                                        <thead class="table-light">
-                                            <tr>
-                                                <th>#</th>
-                                                <th>Alternatif</th>
-                                                <th>Skor</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody>
-                                            {% for r in results_topsis %}
-                                            <tr class="{{ 'table-success fw-bold text-success' if loop.index == 1 else '' }}">
-                                                <td>{{ loop.index }}</td>
-                                                <td>{{ r.Alternatif }}</td>
-                                                <td class="font-monospace">{{ "%.4f"|format(r.Skor|float) }}</td>
-                                            </tr>
-                                            {% endfor %}
-                                        </tbody>
-                                    </table>
-                                </div>
-                            </div>
-
-                            <!-- KARTU 3: MODEL HYBRID ANP-TOPSIS -->
-                            <div class="card border swipe-card shadow-sm border-primary">
+                            <!-- KARTU 1: MODEL HYBRID ANP-TOPSIS (Dipindah ke atas karena ini yang utama) -->
+                            <div class="card border ranking-card shadow-sm border-primary">
                                 <div class="card-header bg-dark text-white fw-bold text-center py-2 d-flex justify-content-center align-items-center">
                                     <span class="badge bg-warning text-dark me-2 small">Main</span> Hybrid ANP-TOPSIS
                                 </div>
@@ -265,7 +172,61 @@
                                 </div>
                             </div>
 
-                        </div> <!-- /mobile-swipe-container -->
+                            <!-- KARTU 2: PENGUKURAN ANP MURNI -->
+                            <div class="card border ranking-card shadow-sm">
+                                <div class="card-header bg-primary text-white fw-bold text-center py-2">
+                                    Pure ANP (Eigenvector)
+                                </div>
+                                <div class="card-body p-0">
+                                    <table class="table table-hover table-striped mb-0 text-center small">
+                                        <thead class="table-light">
+                                            <tr>
+                                                <th>#</th>
+                                                <th>Alternatif</th>
+                                                <th>Skor</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {% for r in results_anp %}
+                                            <tr class="{{ 'table-success fw-bold text-success' if loop.index == 1 else '' }}">
+                                                <td>{{ loop.index }}</td>
+                                                <td>{{ r.Alternatif }}</td>
+                                                <td class="font-monospace">{{ "%.4f"|format(r.Skor|float) }}</td>
+                                            </tr>
+                                            {% endfor %}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+
+                            <!-- KARTU 3: PENGUKURAN TOPSIS MURNI -->
+                            <div class="card border ranking-card shadow-sm">
+                                <div class="card-header bg-success text-white fw-bold text-center py-2">
+                                    Pure TOPSIS (Equal W)
+                                </div>
+                                <div class="card-body p-0">
+                                    <table class="table table-hover table-striped mb-0 text-center small">
+                                        <thead class="table-light">
+                                            <tr>
+                                                <th>#</th>
+                                                <th>Alternatif</th>
+                                                <th>Skor</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {% for r in results_topsis %}
+                                            <tr class="{{ 'table-success fw-bold text-success' if loop.index == 1 else '' }}">
+                                                <td>{{ loop.index }}</td>
+                                                <td>{{ r.Alternatif }}</td>
+                                                <td class="font-monospace">{{ "%.4f"|format(r.Skor|float) }}</td>
+                                            </tr>
+                                            {% endfor %}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+
+                        </div> 
                     </div>
                 </div>
             </div>
@@ -368,42 +329,5 @@
     </footer>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
-    
-    <!-- Script untuk mengaktifkan fitur drag-to-scroll di desktop menggunakan mouse -->
-    <script>
-        document.addEventListener('DOMContentLoaded', function() {
-            const slider = document.getElementById('swipeContainer');
-            if (!slider) return;
-
-            let isDown = false;
-            let startX;
-            let scrollLeft;
-
-            slider.addEventListener('mousedown', (e) => {
-                isDown = true;
-                slider.style.scrollSnapType = 'none'; // Matikan snap sementara agar tarikan mouse terasa mulus
-                startX = e.pageX - slider.offsetLeft;
-                scrollLeft = slider.scrollLeft;
-            });
-
-            slider.addEventListener('mouseleave', () => {
-                isDown = false;
-                slider.style.scrollSnapType = 'x mandatory'; // Aktifkan snap kembali saat mouse pergi
-            });
-
-            slider.addEventListener('mouseup', () => {
-                isDown = false;
-                slider.style.scrollSnapType = 'x mandatory'; // Aktifkan snap kembali setelah selesai drag
-            });
-
-            slider.addEventListener('mousemove', (e) => {
-                if (!isDown) return;
-                e.preventDefault();
-                const x = e.pageX - slider.offsetLeft;
-                const walk = (x - startX) * 1.5; // Sensitivitas kecepatan seret (bisa disesuaikan)
-                slider.scrollLeft = scrollLeft - walk;
-            });
-        });
-    </script>
 </body>
 </html>
