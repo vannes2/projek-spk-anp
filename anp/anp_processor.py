@@ -417,8 +417,19 @@ def run_anp_analysis(df):
     x_indices = np.arange(len(alts))
     width = 0.25
 
-    # Susun data berdasarkan urutan alternatif di Hybrid (Terbaik -> Terburuk)
-    alt_order = [r["Alternatif"] for r in hybrid_ranking]
+    # Susun data berdasarkan urutan ASLI dari file excel (A1, A2, A3, dst)
+    alt_order = alts # Menggunakan urutan asli, bukan berdasarkan ranking
+    
+    # Membuat label dinamis untuk sumbu X (contoh: "A1\n(Kedai Senja)")
+    alt_labels = []
+    for i in range(len(alts)):
+        if nama_alts[i]:
+            # Jika nama ada, buat menjadi dua baris agar grafik tidak terlalu padat
+            alt_labels.append(f"{alts[i]}\n({nama_alts[i]})")
+        else:
+            # Jika tidak ada nama, tetap tampilkan kodenya saja
+            alt_labels.append(alts[i])
+
     anp_plot_scores = [next(item["Skor"] for item in pure_anp_ranking if item["Alternatif"] == a) for a in alt_order]
     topsis_plot_scores = [next(item["Skor"] for item in pure_topsis_ranking if item["Alternatif"] == a) for a in alt_order]
     hybrid_plot_scores = [next(item["Skor"] for item in hybrid_ranking if item["Alternatif"] == a) for a in alt_order]
@@ -430,7 +441,10 @@ def run_anp_analysis(df):
     plt.xlabel("Alternatif (Lokasi UMKM)", fontweight="bold")
     plt.ylabel("Skor Keputusan", fontweight="bold")
     plt.title("Perbandingan Hasil Analisis Antar Metode", fontsize=14, fontweight="bold", pad=15)
-    plt.xticks(x_indices, alt_order, rotation=15)
+    
+    # Menerapkan label dinamis (Kode + Nama) pada sumbu X
+    plt.xticks(x_indices, alt_labels, rotation=0, ha="center") 
+    
     plt.legend()
     plt.grid(axis='y', linestyle='--', alpha=0.5)
     plt.tight_layout()
@@ -441,6 +455,7 @@ def run_anp_analysis(df):
     plt.savefig(chart_save_path, dpi=150)
     plt.close()
 
+    # --- BARIS YANG TERTINGGAL ADA DI SINI ---
     # Format Teks Kesimpulan Dinamis untuk UI
     best_hybrid = hybrid_ranking[0]
     best_anp = pure_anp_ranking[0]
@@ -450,6 +465,7 @@ def run_anp_analysis(df):
     hybrid_name_str = f" ({best_hybrid['Nama']})" if best_hybrid['Nama'] else ""
     anp_name_str = f" ({best_anp['Nama']})" if best_anp['Nama'] else ""
     topsis_name_str = f" ({best_topsis['Nama']})" if best_topsis['Nama'] else ""
+    # ----------------------------------------
     
     summary_dict = {
         "best_hybrid": f"{best_hybrid['Alternatif']}{hybrid_name_str}",
