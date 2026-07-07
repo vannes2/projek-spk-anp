@@ -6,6 +6,9 @@ import re
 import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
+import matplotlib.patches as mpatches
+import matplotlib.lines as mlines
+from matplotlib.patches import FancyArrowPatch, FancyBboxPatch
 
 # ======================================================
 # KONFIGURASI & FOLDER
@@ -221,7 +224,15 @@ def get_criteria_limit_matrix_weights():
         "Source": "ANP Limit Matrix"
     }
     
-    return final_anp_weights, consistency_report, w_main
+    # Supermatrix terstruktur untuk visualisasi jaringan
+    # inner_dependence_weights: bobot C3->C2, C4->C2, C5->C2
+    inner_dep_weights = {
+        "C3_to_C2": float(w_dep_c2[0]),
+        "C4_to_C2": float(w_dep_c2[1]),
+        "C5_to_C2": float(w_dep_c2[2])
+    }
+    
+    return final_anp_weights, consistency_report, w_main, inner_dep_weights
 
 # ======================================================
 # 4. TOPSIS ENGINE (CORE - MENGGUNAKAN VECTOR NORMALIZATION MAKSIMAL)
@@ -253,7 +264,260 @@ def calculate_topsis(df_scores, weights_dict):
     return scores
 
 # ======================================================
-# 5. INTEGRASI & JALANKAN MULTI-ENGINE
+# 5. GENERATE ANP NETWORK PROCESS DIAGRAMS (SERVER-SIDE IMAGES)
+# ======================================================
+def draw_criteria_network(global_weights, inner_dep_weights, crit_keys, crit_short, crit_positions, draw_arrow, draw_node):
+    fig, ax = plt.subplots(figsize=(12, 6.0))
+    ax.set_xlim(0, 16)
+    ax.set_ylim(0, 10)
+    ax.axis('off')
+    ax.set_facecolor('#ffffff')
+    fig.patch.set_facecolor('#ffffff')
+
+    # Draw Bounding Box for "Klaster Kriteria"
+    bbox = mpatches.Rectangle((0.5, 3.2), 15.0, 5.8, fill=False, edgecolor='#2d3436', lw=1.5)
+    ax.add_patch(bbox)
+    ax.text(8.0, 9.3, "Klaster Kriteria", fontsize=12, fontweight='bold', ha='center', va='center')
+
+    # Draw ONLY mathematically calculated inner dependencies (C3->C2, C4->C2, C5->C2)
+    # The weights are drawn dynamically from inner_dep_weights dict.
+    dep_edges = [
+        ("C3", "C2", inner_dep_weights.get("C3_to_C2", 0.0), 0.0),
+        ("C4", "C2", inner_dep_weights.get("C4_to_C2", 0.0), 0.22),
+        ("C5", "C2", inner_dep_weights.get("C5_to_C2", 0.0), -0.22)
+    ]
+    
+    for src, dst, w, rad in dep_edges:
+        if w > 0:
+            wstr = f"Mempengaruhi\n(w = {w:.4f})"
+            draw_arrow(ax, crit_positions[src], crit_positions[dst],
+                       '#ff0000', lw=2.0, ls='-', alpha=0.9, rad=rad, label_txt=wstr, fontsize=8)
+
+    # Draw nodes
+    for key in crit_keys:
+        name = crit_short[key]
+        label = f"{key}: {name}"
+        draw_node(ax, crit_positions[key], label, '#cceeff', '#2d3436', fs=10, w=2.4, h=0.8)
+
+    plt.tight_layout(pad=1.0)
+    path = os.path.join(BASE_DIR, "static", "charts", "anp_network_criteria.png")
+    plt.savefig(path, dpi=150, bbox_inches='tight')
+    plt.close()
+
+def draw_alternatives_network(alts, nama_alts, alt_codes, hybrid_ranking, draw_arrow, draw_node):
+    """Menggambar jaringan dominansi turnamen lengkap (Hasse Diagram) secara dinamis."""
+    fig, ax = plt.subplots(figsize=(12, 6.5))
+    ax.set_xlim(0, 16)
+    ax.set_ylim(0, 10)
+    ax.axis('off')
+    ax.set_facecolor('#ffffff')
+    fig.patch.set_facecolor('#ffffff')
+
+    # Bounding Box
+    bbox = mpatches.Rectangle((0.5, 0.8), 15.0, 8.2, fill=False, edgecolor='#2d3436', lw=1.5)
+    ax.add_patch(bbox)
+    ax.text(8.0, 9.3, "Klaster Alternatif (Jaringan Dominansi Keputusan)", fontsize=12, fontweight='bold', ha='center', va='center')
+
+    # Pentagon/Circular Layout for 5 alternatives
+    n_alts = len(alts)
+    positions = {}
+    angles = np.linspace(0, 2*np.pi, n_alts, endpoint=False)
+    
+    # Sort by rank
+    sorted_alts = sorted(hybrid_ranking, key=lambda x: x["Rank"])
+    
+    for i, item in enumerate(sorted_alts):
+        alt_name = item["Alternatif"]
+        # Center at (8.0, 4.8)
+        x = 8.0 + 3.5 * np.cos(angles[i] + np.pi/2)
+        y = 4.8 + 2.8 * np.sin(angles[i] + np.pi/2)
+        positions[str(alt_name)] = (x, y)
+
+    # Draw Tournament Dominance arrows (higher rank points to ALL lower ranks)
+    for i in range(len(sorted_alts)):
+        for j in range(i + 1, len(sorted_alts)):
+            curr_alt = sorted_alts[i]
+            target_alt = sorted_alts[j]
+            
+            curr_pos = positions.get(str(curr_alt["Alternatif"]))
+            target_pos = positions.get(str(target_alt["Alternatif"]))
+            
+            if curr_pos and target_pos:
+                diff_score = float(curr_alt["Skor"]) - float(target_alt["Skor"])
+                # Adjust curvature (rad) based on the distance between nodes to prevent line overlap
+                rad = 0.12 * (j - i)
+                lbl = f"+{diff_score:.3f}" if (j - i) == 1 else None # Label only direct rank steps for cleanliness
+                draw_arrow(ax, curr_pos, target_pos, '#ff0000', lw=1.2, alpha=0.7, rad=rad, label_txt=lbl, fontsize=6.5)
+
+    # Draw nodes
+    for ai, item in enumerate(sorted_alts):
+        alt_code = item["Alternatif"]
+        name = item["Nama"] if item["Nama"] else alt_code
+        score = float(item["Skor"])
+        rank = int(item["Rank"])
+        
+        label = f"{alt_code}: {name}\nSkor={score:.4f}\n(Rank #{rank})"
+        pos = positions.get(str(alt_code))
+        
+        fc = '#55efc4' if rank == 1 else '#cceeff'
+        if pos:
+            draw_node(ax, pos, label, fc, '#2d3436', fs=9, w=2.8, h=0.9)
+
+    plt.tight_layout(pad=1.0)
+    path = os.path.join(BASE_DIR, "static", "charts", "anp_network_alternatives.png")
+    plt.savefig(path, dpi=150, bbox_inches='tight')
+    plt.close()
+
+def draw_hierarchy_network(alts, nama_alts, alt_codes, global_weights, local_matrix, w_main, crit_keys, crit_short, draw_arrow, draw_node):
+    fig, ax = plt.subplots(figsize=(12, 7.5))
+    ax.set_xlim(0, 16)
+    ax.set_ylim(0, 10)
+    ax.axis('off')
+    ax.set_facecolor('#ffffff')
+    fig.patch.set_facecolor('#ffffff')
+
+    # Draw Bounding Box for "Klaster Kriteria" at the top
+    bbox_crit = mpatches.Rectangle((0.5, 4.0), 15.0, 5.2, fill=False, edgecolor='#2d3436', lw=1.5)
+    ax.add_patch(bbox_crit)
+    ax.text(8.0, 9.5, "Klaster Kriteria", fontsize=12, fontweight='bold', ha='center', va='center')
+
+    # Coordinates for criteria cluster: y=7.8 for row 1, y=5.0 for row 2
+    crit_positions_new = {
+        "C5": (1.8, 7.8),
+        "C4": (8.0, 7.8),
+        "C3": (14.2, 7.8),
+        "C2": (5.8, 5.0),
+        "C1": (10.2, 5.0)
+    }
+
+    # Draw actual inner dependencies (C3->C2, C4->C2, C5->C2)
+    dep_edges = [
+        ("C3", "C2", 0.0),
+        ("C4", "C2", 0.22),
+        ("C5", "C2", -0.22)
+    ]
+    for src, dst, rad in dep_edges:
+        draw_arrow(ax, crit_positions_new[src], crit_positions_new[dst],
+                   '#ff0000', lw=1.8, ls='-', alpha=0.9, rad=rad, label_txt="Mempengaruhi", fontsize=7.5)
+
+    # Set up positions for alternatives at y=1.5 in order A1 to A5 horizontally
+    n_alts = len(alts)
+    positions = {}
+    alt_spacing = min(3.0, 13.0 / max(n_alts, 1))
+    alt_x_start = 8.0 - (n_alts - 1) * alt_spacing / 2.0
+    for i, alt in enumerate(alts):
+        positions[str(alt)] = (alt_x_start + i * alt_spacing, 1.5)
+
+    # Draw Criteria -> Alternative connections (thickness proportional to local weights)
+    alt_list = list(alts)
+    for ci, ckey in enumerate(crit_keys):
+        local_col = local_matrix[:, ci] if local_matrix is not None and local_matrix.ndim == 2 else []
+        for ai, alt in enumerate(alt_list):
+            astr = str(alt)
+            if astr in positions:
+                w = float(local_col[ai]) if ai < len(local_col) else 0.0
+                if w > 0.01:
+                    lw = max(0.5, w * 8)
+                    lbl = f"{w:.3f}" if w > 0.05 else None
+                    draw_arrow(ax, crit_positions_new[ckey], positions[astr],
+                               '#dcdde1', lw=lw, alpha=0.55, rad=-0.08, label_txt=lbl, fontsize=6.5)
+
+    # Draw Nodes
+    for key in crit_keys:
+        name = crit_short[key]
+        label = f"{key}: {name}"
+        draw_node(ax, crit_positions_new[key], label, '#cceeff', '#2d3436', fs=9, w=2.4, h=0.8)
+
+    for ai, alt in enumerate(alt_list):
+        astr = str(alt)
+        code = alt_codes.get(astr, f"A{ai+1}")
+        name = nama_alts[ai] if ai < len(nama_alts) and str(nama_alts[ai]).strip() else astr
+        label = f"{code}: {name}"
+        pos = positions.get(astr)
+        if pos:
+            draw_node(ax, pos, label, '#cceeff', '#2d3436', fs=8.5, w=2.4, h=0.7)
+
+    plt.tight_layout(pad=1.0)
+    path = os.path.join(BASE_DIR, "static", "charts", "anp_network_hierarchy.png")
+    plt.savefig(path, dpi=150, bbox_inches='tight')
+    plt.close()
+
+def generate_anp_network_images(alts, nama_alts, global_weights, inner_dep_weights, local_matrix, w_main, hybrid_ranking):
+    """Membuat 3 gambar terpisah untuk diagram jaringan ANP agar tidak terlalu kompleks."""
+    n_alts = len(alts)
+    crit_keys = ["C1", "C2", "C3", "C4", "C5"]
+    crit_short = {"C1": "Sewa", "C2": "Jual", "C3": "Bahan", "C4": "Fasilitas", "C5": "Saing"}
+
+    # Coordinates for criteria cluster: Row 1 has C5, C4, C3; Row 2 has C2, C1
+    crit_positions = {
+        "C5": (1.8, 7.5),
+        "C4": (8.0, 7.5),
+        "C3": (14.2, 7.5),
+        "C2": (5.8, 4.5),
+        "C1": (10.2, 4.5)
+    }
+
+    # Map alternatives to skripsi codes (A1 to A5)
+    alt_codes = {}
+    for i, alt in enumerate(alts):
+        alt_clean = str(alt).lower()
+        if "barokah" in alt_clean or "a1" in alt_clean:
+            alt_codes[str(alt)] = "A1"
+        elif "pencuk" in alt_clean or "a2" in alt_clean:
+            alt_codes[str(alt)] = "A2"
+        elif "daisuki" in alt_clean or "a3" in alt_clean:
+            alt_codes[str(alt)] = "A3"
+        elif "potangpol" in alt_clean or "a4" in alt_clean:
+            alt_codes[str(alt)] = "A4"
+        elif "penyet" in alt_clean or "soto" in alt_clean or "a5" in alt_clean:
+            alt_codes[str(alt)] = "A5"
+        else:
+            alt_codes[str(alt)] = f"A{i+1}"
+
+    # === HELPER: GAMBAR ANAK PANAH ===
+    def draw_arrow(ax, fp, tp, color, lw=1.2, ls='-', alpha=0.65, rad=0.0, label_txt=None, fontsize=7.5):
+        ax.annotate("",
+            xy=tp, xycoords='data', xytext=fp, textcoords='data',
+            arrowprops=dict(
+                arrowstyle="-|>", color=color, lw=lw, linestyle=ls,
+                alpha=alpha, connectionstyle=f"arc3,rad={rad}", mutation_scale=12
+            )
+        )
+        if label_txt:
+            mx, my = (fp[0] + tp[0]) / 2, (fp[1] + tp[1]) / 2
+            if rad != 0.0:
+                dx = tp[0] - fp[0]
+                dy = tp[1] - fp[1]
+                dist = np.sqrt(dx**2 + dy**2)
+                if dist > 0:
+                    mx += (dy / dist) * rad * 1.5
+                    my -= (dx / dist) * rad * 1.5
+            ax.text(mx, my, label_txt, fontsize=fontsize, color='#2d3436',
+                   ha='center', va='center',
+                   bbox=dict(boxstyle='round,pad=0.1', fc='white', alpha=0.8, ec='none'))
+
+    # === HELPER: GAMBAR NODE (KOTAK) ===
+    def draw_node(ax, pos, lines, fc, ec, fw='normal', fs=8.5, w=1.7, h=0.6):
+        rect = FancyBboxPatch((pos[0] - w/2, pos[1] - h/2), w, h,
+                              boxstyle="round,pad=0.08", fc=fc, ec=ec, lw=1.5, zorder=3)
+        ax.add_patch(rect)
+        ax.text(pos[0], pos[1], lines, ha='center', va='center',
+               fontsize=fs, fontweight=fw, color='#2d3436', zorder=4,
+               multialignment='center')
+
+    # Draw the 3 diagrams
+    draw_criteria_network(global_weights, inner_dep_weights, crit_keys, crit_short, crit_positions, draw_arrow, draw_node)
+    draw_alternatives_network(alts, nama_alts, alt_codes, hybrid_ranking, draw_arrow, draw_node)
+    draw_hierarchy_network(alts, nama_alts, alt_codes, global_weights, local_matrix, w_main, crit_keys, crit_short, draw_arrow, draw_node)
+
+    return {
+        "criteria": "static/charts/anp_network_criteria.png",
+        "alternatives": "static/charts/anp_network_alternatives.png",
+        "hierarchy": "static/charts/anp_network_hierarchy.png"
+    }
+
+# ======================================================
+# 6. INTEGRASI & JALANKAN MULTI-ENGINE
 # ======================================================
 def run_anp_analysis(df):
     print(">>> Memulai Proses Analisis Multi-Engine (ANP, TOPSIS, Hybrid)...")
@@ -291,7 +555,7 @@ def run_anp_analysis(df):
             nama_alts = df[df.columns[1]].fillna("").astype(str).tolist()
 
     # --- JALANKAN PROSES PEMBOBOTAN LIMIT MATRIX ANP ---
-    global_weights, criteria_report, w_main = get_criteria_limit_matrix_weights()
+    global_weights, criteria_report, w_main, inner_dep_weights = get_criteria_limit_matrix_weights()
 
     # Deteksi kecocokan data skripsi untuk kalibrasi presisi manual 100%
     is_skripsi_data = False
@@ -477,15 +741,45 @@ def run_anp_analysis(df):
         )
     }
 
+    # Struktur supermatrix untuk visualisasi jaringan di frontend
+    # Berisi: siapa mempengaruhi siapa + bobotnya berapa
+    network_structure = {
+        # Inner dependence: kolom C2 pada supermatrix (hanya C3, C4, C5 yang punya nilai > 0)
+        "inner_dependence": inner_dep_weights,
+        # Bobot kriteria utama dari matriks perbandingan berpasangan (sebelum limit matrix)
+        "weights_main": {
+            "C1": float(w_main[0]),
+            "C2": float(w_main[1]),
+            "C3": float(w_main[2]),
+            "C4": float(w_main[3]),
+            "C5": float(w_main[4])
+        },
+        # Bobot lokal alternatif per kriteria (dari matriks perbandingan berpasangan alternatif)
+        "local_priorities": {
+            c: [float(v) for v in local_matrix[:, idx]]
+            for idx, c in enumerate(["C1", "C2", "C3", "C4", "C5"])
+        },
+        "alternative_codes": [str(a) for a in alts]
+    }
+
+    # === GENERATE GAMBAR NETWORKING PROCESS (SERVER-SIDE) ===
+    network_charts = generate_anp_network_images(
+        alts, nama_alts, global_weights, inner_dep_weights, local_matrix, w_main, hybrid_ranking
+    )
+
     return {
-        "ranking": hybrid_ranking,  # Fallback kompatibilitas penting untuk endpoint generator PDF
+        "ranking": hybrid_ranking,
         "pure_anp_ranking": pure_anp_ranking,
         "pure_topsis_ranking": pure_topsis_ranking,
         "hybrid_ranking": hybrid_ranking,
         "chart_path": "/" + chart_relative_path if not chart_relative_path.startswith("/") else chart_relative_path,
-        "weights": global_weights,  # Fallback penting untuk render template PDF lama (pdf_spk.html)
+        "network_chart_criteria": "/" + network_charts["criteria"],
+        "network_chart_alternatives": "/" + network_charts["alternatives"],
+        "network_chart_hierarchy": "/" + network_charts["hierarchy"],
+        "weights": global_weights,
         "weights_anp_global": global_weights,
         "consistency_report": full_report,
         "consistency_ratio": criteria_report["CR_Criteria_Matrix"],
-        "summary": summary_dict
+        "summary": summary_dict,
+        "network_structure": network_structure
     }
