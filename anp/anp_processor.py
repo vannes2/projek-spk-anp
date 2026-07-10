@@ -267,17 +267,17 @@ def calculate_topsis(df_scores, weights_dict):
 # 5. GENERATE ANP NETWORK PROCESS DIAGRAMS (SERVER-SIDE IMAGES)
 # ======================================================
 def draw_criteria_network(global_weights, inner_dep_weights, crit_keys, crit_short, crit_positions, draw_arrow, draw_node):
-    fig, ax = plt.subplots(figsize=(12, 6.0))
-    ax.set_xlim(0, 16)
+    fig, ax = plt.subplots(figsize=(15, 6.0))
+    ax.set_xlim(0, 20)
     ax.set_ylim(0, 10)
     ax.axis('off')
     ax.set_facecolor('#ffffff')
     fig.patch.set_facecolor('#ffffff')
 
     # Draw Bounding Box for "Klaster Kriteria"
-    bbox = mpatches.Rectangle((0.5, 3.2), 15.0, 5.8, fill=False, edgecolor='#2d3436', lw=1.5)
+    bbox = mpatches.Rectangle((0.5, 3.2), 19.0, 5.8, fill=False, edgecolor='#2d3436', lw=1.5)
     ax.add_patch(bbox)
-    ax.text(8.0, 9.3, "Klaster Kriteria", fontsize=12, fontweight='bold', ha='center', va='center')
+    ax.text(10.0, 9.3, "Klaster Kriteria", fontsize=16, fontweight='bold', ha='center', va='center')
 
     # Draw ONLY mathematically calculated inner dependencies (C3->C2, C4->C2, C5->C2)
     # The weights are drawn dynamically from inner_dep_weights dict.
@@ -291,13 +291,13 @@ def draw_criteria_network(global_weights, inner_dep_weights, crit_keys, crit_sho
         if w > 0:
             wstr = f"Mempengaruhi\n(w = {w:.4f})"
             draw_arrow(ax, crit_positions[src], crit_positions[dst],
-                       '#ff0000', lw=2.0, ls='-', alpha=0.9, rad=rad, label_txt=wstr, fontsize=8)
+                       '#ff0000', lw=2.0, ls='-', alpha=0.9, rad=rad, label_txt=wstr, fontsize=11)
 
     # Draw nodes
     for key in crit_keys:
         name = crit_short[key]
         label = f"{key}: {name}"
-        draw_node(ax, crit_positions[key], label, '#cceeff', '#2d3436', fs=10, w=2.4, h=0.8)
+        draw_node(ax, crit_positions[key], label, '#cceeff', '#2d3436', fs=13, w=3.0, h=1.0)
 
     plt.tight_layout(pad=1.0)
     path = os.path.join(BASE_DIR, "static", "charts", "anp_network_criteria.png")
@@ -306,17 +306,17 @@ def draw_criteria_network(global_weights, inner_dep_weights, crit_keys, crit_sho
 
 def draw_alternatives_network(alts, nama_alts, alt_codes, hybrid_ranking, draw_arrow, draw_node):
     """Menggambar jaringan dominansi turnamen lengkap (Hasse Diagram) secara dinamis."""
-    fig, ax = plt.subplots(figsize=(12, 6.5))
-    ax.set_xlim(0, 16)
+    fig, ax = plt.subplots(figsize=(15, 6.5))
+    ax.set_xlim(0, 20)
     ax.set_ylim(0, 10)
     ax.axis('off')
     ax.set_facecolor('#ffffff')
     fig.patch.set_facecolor('#ffffff')
 
     # Bounding Box
-    bbox = mpatches.Rectangle((0.5, 0.8), 15.0, 8.2, fill=False, edgecolor='#2d3436', lw=1.5)
+    bbox = mpatches.Rectangle((0.5, 0.8), 19.0, 8.2, fill=False, edgecolor='#2d3436', lw=1.5)
     ax.add_patch(bbox)
-    ax.text(8.0, 9.3, "Klaster Alternatif (Jaringan Dominansi Keputusan)", fontsize=12, fontweight='bold', ha='center', va='center')
+    ax.text(10.0, 9.3, "Klaster Alternatif (Jaringan Dominansi Keputusan)", fontsize=16, fontweight='bold', ha='center', va='center')
 
     # Pentagon/Circular Layout for 5 alternatives
     n_alts = len(alts)
@@ -328,8 +328,8 @@ def draw_alternatives_network(alts, nama_alts, alt_codes, hybrid_ranking, draw_a
     
     for i, item in enumerate(sorted_alts):
         alt_name = item["Alternatif"]
-        # Center at (8.0, 4.8)
-        x = 8.0 + 3.5 * np.cos(angles[i] + np.pi/2)
+        # Center at (10.0, 4.8)
+        x = 10.0 + 4.5 * np.cos(angles[i] + np.pi/2)
         y = 4.8 + 2.8 * np.sin(angles[i] + np.pi/2)
         positions[str(alt_name)] = (x, y)
 
@@ -347,7 +347,7 @@ def draw_alternatives_network(alts, nama_alts, alt_codes, hybrid_ranking, draw_a
                 # Adjust curvature (rad) based on the distance between nodes to prevent line overlap
                 rad = 0.12 * (j - i)
                 lbl = f"+{diff_score:.3f}" if (j - i) == 1 else None # Label only direct rank steps for cleanliness
-                draw_arrow(ax, curr_pos, target_pos, '#ff0000', lw=1.2, alpha=0.7, rad=rad, label_txt=lbl, fontsize=6.5)
+                draw_arrow(ax, curr_pos, target_pos, '#ff0000', lw=1.2, alpha=0.7, rad=rad, label_txt=lbl, fontsize=10)
 
     # Draw nodes
     for ai, item in enumerate(sorted_alts):
@@ -361,7 +361,7 @@ def draw_alternatives_network(alts, nama_alts, alt_codes, hybrid_ranking, draw_a
         
         fc = '#55efc4' if rank == 1 else '#cceeff'
         if pos:
-            draw_node(ax, pos, label, fc, '#2d3436', fs=9, w=2.8, h=0.9)
+            draw_node(ax, pos, label, fc, '#2d3436', fs=12, w=3.5, h=1.2)
 
     plt.tight_layout(pad=1.0)
     path = os.path.join(BASE_DIR, "static", "charts", "anp_network_alternatives.png")
@@ -369,25 +369,25 @@ def draw_alternatives_network(alts, nama_alts, alt_codes, hybrid_ranking, draw_a
     plt.close()
 
 def draw_hierarchy_network(alts, nama_alts, alt_codes, global_weights, local_matrix, w_main, crit_keys, crit_short, draw_arrow, draw_node):
-    fig, ax = plt.subplots(figsize=(12, 7.5))
-    ax.set_xlim(0, 16)
+    fig, ax = plt.subplots(figsize=(15, 7.5))
+    ax.set_xlim(0, 20)
     ax.set_ylim(0, 10)
     ax.axis('off')
     ax.set_facecolor('#ffffff')
     fig.patch.set_facecolor('#ffffff')
 
     # Draw Bounding Box for "Klaster Kriteria" at the top
-    bbox_crit = mpatches.Rectangle((0.5, 4.0), 15.0, 5.2, fill=False, edgecolor='#2d3436', lw=1.5)
+    bbox_crit = mpatches.Rectangle((0.5, 4.0), 19.0, 5.2, fill=False, edgecolor='#2d3436', lw=1.5)
     ax.add_patch(bbox_crit)
-    ax.text(8.0, 9.5, "Klaster Kriteria", fontsize=12, fontweight='bold', ha='center', va='center')
+    ax.text(10.0, 9.5, "Klaster Kriteria", fontsize=16, fontweight='bold', ha='center', va='center')
 
     # Coordinates for criteria cluster: y=7.8 for row 1, y=5.0 for row 2
     crit_positions_new = {
-        "C5": (1.8, 7.8),
-        "C4": (8.0, 7.8),
-        "C3": (14.2, 7.8),
-        "C2": (5.8, 5.0),
-        "C1": (10.2, 5.0)
+        "C5": (2.5, 7.8),
+        "C4": (10.0, 7.8),
+        "C3": (17.5, 7.8),
+        "C2": (7.0, 5.0),
+        "C1": (13.0, 5.0)
     }
 
     # Draw actual inner dependencies (C3->C2, C4->C2, C5->C2)
@@ -398,13 +398,13 @@ def draw_hierarchy_network(alts, nama_alts, alt_codes, global_weights, local_mat
     ]
     for src, dst, rad in dep_edges:
         draw_arrow(ax, crit_positions_new[src], crit_positions_new[dst],
-                   '#ff0000', lw=1.8, ls='-', alpha=0.9, rad=rad, label_txt="Mempengaruhi", fontsize=7.5)
+                   '#ff0000', lw=1.8, ls='-', alpha=0.9, rad=rad, label_txt="Mempengaruhi", fontsize=11)
 
-    # Set up positions for alternatives at y=1.5 in order A1 to A5 horizontally
+    # Set up positions for alternatives at y=1.5 in order A1 to A5 horizontally with wider spacing
     n_alts = len(alts)
     positions = {}
-    alt_spacing = min(3.0, 13.0 / max(n_alts, 1))
-    alt_x_start = 8.0 - (n_alts - 1) * alt_spacing / 2.0
+    alt_spacing = 3.6
+    alt_x_start = 10.0 - (n_alts - 1) * alt_spacing / 2.0
     for i, alt in enumerate(alts):
         positions[str(alt)] = (alt_x_start + i * alt_spacing, 1.5)
 
@@ -420,13 +420,13 @@ def draw_hierarchy_network(alts, nama_alts, alt_codes, global_weights, local_mat
                     lw = max(0.5, w * 8)
                     lbl = f"{w:.3f}" if w > 0.05 else None
                     draw_arrow(ax, crit_positions_new[ckey], positions[astr],
-                               '#dcdde1', lw=lw, alpha=0.55, rad=-0.08, label_txt=lbl, fontsize=6.5)
+                               '#dcdde1', lw=lw, alpha=0.55, rad=-0.08, label_txt=lbl, fontsize=9.5)
 
     # Draw Nodes
     for key in crit_keys:
         name = crit_short[key]
         label = f"{key}: {name}"
-        draw_node(ax, crit_positions_new[key], label, '#cceeff', '#2d3436', fs=9, w=2.4, h=0.8)
+        draw_node(ax, crit_positions_new[key], label, '#cceeff', '#2d3436', fs=12, w=2.8, h=0.9)
 
     for ai, alt in enumerate(alt_list):
         astr = str(alt)
@@ -435,7 +435,7 @@ def draw_hierarchy_network(alts, nama_alts, alt_codes, global_weights, local_mat
         label = f"{code}: {name}"
         pos = positions.get(astr)
         if pos:
-            draw_node(ax, pos, label, '#cceeff', '#2d3436', fs=8.5, w=2.4, h=0.7)
+            draw_node(ax, pos, label, '#cceeff', '#2d3436', fs=11.5, w=2.8, h=0.9)
 
     plt.tight_layout(pad=1.0)
     path = os.path.join(BASE_DIR, "static", "charts", "anp_network_hierarchy.png")
@@ -450,11 +450,11 @@ def generate_anp_network_images(alts, nama_alts, global_weights, inner_dep_weigh
 
     # Coordinates for criteria cluster: Row 1 has C5, C4, C3; Row 2 has C2, C1
     crit_positions = {
-        "C5": (1.8, 7.5),
-        "C4": (8.0, 7.5),
-        "C3": (14.2, 7.5),
-        "C2": (5.8, 4.5),
-        "C1": (10.2, 4.5)
+        "C5": (2.5, 7.5),
+        "C4": (10.0, 7.5),
+        "C3": (17.5, 7.5),
+        "C2": (7.0, 4.5),
+        "C1": (13.0, 4.5)
     }
 
     # Map alternatives to skripsi codes (A1 to A5)
@@ -475,7 +475,7 @@ def generate_anp_network_images(alts, nama_alts, global_weights, inner_dep_weigh
             alt_codes[str(alt)] = f"A{i+1}"
 
     # === HELPER: GAMBAR ANAK PANAH ===
-    def draw_arrow(ax, fp, tp, color, lw=1.2, ls='-', alpha=0.65, rad=0.0, label_txt=None, fontsize=7.5):
+    def draw_arrow(ax, fp, tp, color, lw=1.2, ls='-', alpha=0.65, rad=0.0, label_txt=None, fontsize=10.0):
         ax.annotate("",
             xy=tp, xycoords='data', xytext=fp, textcoords='data',
             arrowprops=dict(
@@ -497,7 +497,7 @@ def generate_anp_network_images(alts, nama_alts, global_weights, inner_dep_weigh
                    bbox=dict(boxstyle='round,pad=0.1', fc='white', alpha=0.8, ec='none'))
 
     # === HELPER: GAMBAR NODE (KOTAK) ===
-    def draw_node(ax, pos, lines, fc, ec, fw='normal', fs=8.5, w=1.7, h=0.6):
+    def draw_node(ax, pos, lines, fc, ec, fw='normal', fs=11.0, w=2.5, h=0.8):
         rect = FancyBboxPatch((pos[0] - w/2, pos[1] - h/2), w, h,
                               boxstyle="round,pad=0.08", fc=fc, ec=ec, lw=1.5, zorder=3)
         ax.add_patch(rect)

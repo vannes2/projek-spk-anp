@@ -589,12 +589,20 @@ def download_spk_pdf():
 
         result_data = run_anp_analysis(df)
 
+        # Ambil path absolut file gambar untuk disematkan di PDF
+        criteria_chart_path = os.path.join(BASE_DIR, "static", "charts", "anp_network_criteria.png")
+        alternatives_chart_path = os.path.join(BASE_DIR, "static", "charts", "anp_network_alternatives.png")
+        hierarchy_chart_path = os.path.join(BASE_DIR, "static", "charts", "anp_network_hierarchy.png")
+
         html = render_template(
             "pdf_spk.html",
             name=session["user_name"],
             results=result_data["hybrid_ranking"],
             info=result_data,
-            table_data=df.to_html(classes="table table-bordered", index=False)
+            table_data=df.to_html(classes="table table-bordered", index=False),
+            criteria_chart=criteria_chart_path if os.path.exists(criteria_chart_path) else None,
+            alternatives_chart=alternatives_chart_path if os.path.exists(alternatives_chart_path) else None,
+            hierarchy_chart=hierarchy_chart_path if os.path.exists(hierarchy_chart_path) else None
         )
 
         css_path = os.path.join(app.static_folder, "css", "pages", "pdf_spk.css")
@@ -612,6 +620,39 @@ def download_spk_pdf():
     except Exception as e:
         flash(f"Gagal membuat PDF: {e}", "danger")
         return redirect(url_for("upload_file"))
+
+@app.route("/download/diagrams-zip")
+def download_diagrams_zip():
+    if "user_id" not in session:
+        return redirect(url_for("login"))
+
+    import zipfile
+    
+    base_charts_dir = os.path.join(BASE_DIR, "static", "charts")
+    files_to_zip = {
+        "anp_network_criteria.png": "1_Hubungan_Kriteria_Ke_Kriteria.png",
+        "anp_network_alternatives.png": "2_Hubungan_Alternatif_Ke_Alternatif.png",
+        "anp_network_hierarchy.png": "3_Hubungan_Alternatif_Ke_Kriteria.png"
+    }
+
+    zip_buffer = io.BytesIO()
+    has_files = False
+    with zipfile.ZipFile(zip_buffer, "w", zipfile.ZIP_DEFLATED) as zip_file:
+        for filename, zip_name in files_to_zip.items():
+            filepath = os.path.join(base_charts_dir, filename)
+            if os.path.exists(filepath):
+                zip_file.write(filepath, zip_name)
+                has_files = True
+
+    if not has_files:
+        flash("Belum ada file diagram yang dibuat. Silakan upload data terlebih dahulu.", "warning")
+        return redirect(url_for("upload_file"))
+
+    zip_buffer.seek(0)
+    response = make_response(zip_buffer.getvalue())
+    response.headers['Content-Type'] = 'application/zip'
+    response.headers['Content-Disposition'] = 'attachment; filename=Diagram_Hubungan_ANP.zip'
+    return response
 
 @app.route("/download/finance")
 def download_finance_pdf():

@@ -56,3 +56,33 @@ body.pdf-report {
 .pdf-report td {
   color: #000 !important;  /* <-- inilah kuncinya */
 }
+
+/* Kustomisasi halaman baru dan diagram */
+.page-break {
+  page-break-before: always;
+}
+
+.diagram-section {
+  margin-top: 10px;
+}
+
+.diagram-item {
+  margin-bottom: 25px;
+  text-align: center;
+  page-break-inside: avoid;
+}
+
+.diagram-item h4 {
+  font-size: 14px;
+  color: #333;
+  margin-bottom: 8px;
+  text-align: left;
+}
+
+.diagram-item img {
+  width: 100%;
+  max-width: 580px;
+  height: auto;
+  border: 1px solid #ddd;
+  border-radius: 5px;
+}

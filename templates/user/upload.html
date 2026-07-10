@@ -25,7 +25,7 @@
 <body class="page-upload bg-light">
 
     <nav class="navbar navbar-expand-lg navbar-dark bg-dark shadow-sm">
-        <div class="container">
+        <div class="container-fluid px-lg-5">
             <a class="navbar-brand fw-bold text-white" href="/dashboard">
                 <i class="fa-solid fa-square-poll-vertical me-2"></i>SPK ANP-TOPSIS
             </a>
@@ -41,7 +41,7 @@
         </div>
     </nav>
 
-    <main class="container py-5">
+    <main class="container-fluid px-lg-5 py-5">
         <div class="text-center mb-5">
             <h1 class="fw-bold text-dark">Analisis Pemilihan Lokasi UMKM</h1>
             <p class="text-muted col-md-8 mx-auto">Unggah file Excel atau CSV berisi data kriteria alternatif untuk dianalisis secara komparatif menggunakan tiga engine sekaligus: Pure ANP, Pure TOPSIS, dan Hybrid ANP-TOPSIS.</p>
@@ -98,6 +98,9 @@
                             <span class="badge bg-light text-muted border small">Geser kiri/kanan untuk berganti</span>
                         </div>
                         <div>
+                            <a href="{{ url_for('download_diagrams_zip') }}" class="btn btn-outline-primary btn-sm me-2 fw-semibold">
+                                <i class="fas fa-file-archive"></i> Unduh Semua Diagram (ZIP)
+                            </a>
                             <a href="{{ url_for('download_spk_pdf') }}" class="btn btn-outline-danger btn-sm me-2 fw-semibold">
                                 <i class="fas fa-file-pdf"></i> Unduh PDF
                             </a>
@@ -136,7 +139,7 @@
                                         <img src="{{ url_for('static', filename=chart.split('static/')[-1]) if 'static/' in chart else chart }}"
                                              alt="Grafik Komparasi SPK"
                                              class="img-fluid"
-                                             style="max-height:370px; width:100%; object-fit:contain; padding:8px;">
+                                             style="max-height:520px; width:100%; object-fit:contain; padding:8px;">
                                         {% else %}
                                         <div class="py-5 text-muted">
                                             <i class="fa-regular fa-image fa-3x mb-3 text-secondary"></i><br>Grafik tidak dapat dimuat.
@@ -156,7 +159,7 @@
                                         <img src="{{ info.network_chart_criteria }}"
                                              alt="Jaringan Kriteria ↔ Kriteria"
                                              class="img-fluid"
-                                             style="max-height:370px; width:100%; object-fit:contain; padding:8px;">
+                                             style="max-height:520px; width:100%; object-fit:contain; padding:8px;">
                                         {% else %}
                                         <div class="py-5 text-muted">
                                             <i class="fa-solid fa-circle-nodes fa-3x mb-3 text-secondary"></i><br>Diagram kriteria tidak dapat dimuat.
@@ -176,7 +179,7 @@
                                         <img src="{{ info.network_chart_alternatives }}"
                                              alt="Jaringan Alternatif ↔ Alternatif"
                                              class="img-fluid"
-                                             style="max-height:370px; width:100%; object-fit:contain; padding:8px;">
+                                             style="max-height:520px; width:100%; object-fit:contain; padding:8px;">
                                         {% else %}
                                         <div class="py-5 text-muted">
                                             <i class="fa-solid fa-circle-nodes fa-3x mb-3 text-secondary"></i><br>Diagram alternatif tidak dapat dimuat.
@@ -196,7 +199,7 @@
                                         <img src="{{ info.network_chart_hierarchy }}"
                                              alt="Jaringan Alternatif ↔ Kriteria"
                                              class="img-fluid"
-                                             style="max-height:370px; width:100%; object-fit:contain; padding:8px;">
+                                             style="max-height:520px; width:100%; object-fit:contain; padding:8px;">
                                         {% else %}
                                         <div class="py-5 text-muted">
                                             <i class="fa-solid fa-circle-nodes fa-3x mb-3 text-secondary"></i><br>Diagram prioritas tidak dapat dimuat.

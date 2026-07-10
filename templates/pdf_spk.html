@@ -50,5 +50,32 @@
       </tbody>
     </table>
   </div>
+
+  <!-- Jaringan Diagram ANP -->
+  <div class="page-break"></div>
+  <div class="diagram-section">
+    <h3>📊 Diagram Hubungan Kriteria & Alternatif (Jaringan ANP)</h3>
+    
+    {% if criteria_chart %}
+    <div class="diagram-item">
+      <h4>1. Hubungan Kriteria ↔ Kriteria (Inner Dependence)</h4>
+      <img src="{{ criteria_chart }}" alt="Jaringan Kriteria">
+    </div>
+    {% endif %}
+    
+    {% if alternatives_chart %}
+    <div class="diagram-item">
+      <h4>2. Hubungan Alternatif ↔ Alternatif (Pairwise Dominance)</h4>
+      <img src="{{ alternatives_chart }}" alt="Jaringan Alternatif">
+    </div>
+    {% endif %}
+    
+    {% if hierarchy_chart %}
+    <div class="diagram-item">
+      <h4>3. Hubungan Alternatif ↔ Kriteria (Priorities)</h4>
+      <img src="{{ hierarchy_chart }}" alt="Jaringan Hirarki">
+    </div>
+    {% endif %}
+  </div>
 </body>
 </html>
