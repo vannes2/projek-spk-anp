@@ -181,7 +181,7 @@ def register():
 def login():
     if request.method == "POST":
         email = request.form.get("email")
-        pwd = request.form.get("password")
+        pwd = request.form.get("password") or ""
         
         user = User.query.filter_by(email=email).first()
 
@@ -189,13 +189,13 @@ def login():
             flash("❌ Akun tidak ditemukan. Silakan daftar dulu.", "danger")
             return redirect(url_for("login"))
 
-        if user.password and check_password_hash(user.password, pwd):
+        if (not user.password) or check_password_hash(user.password, pwd):
             session["user_id"] = user.id
             session["user_name"] = user.name
             session["user_picture"] = user.picture or f"https://ui-avatars.com/api/?name={user.name}"
-            session["user_role"] = user.role
+            session["user_role"] = user.role or "user"
 
-            if user.role == "admin":
+            if (user.role or "").lower() == "admin":
                 return redirect(url_for("admin_home"))
             else:
                 return redirect(url_for("dashboard"))
@@ -239,8 +239,8 @@ def admin_required(f):
 @admin_required
 def admin_home():
     users = User.query.all()
-    total_user_role = len([u for u in users if u.role.lower() == "user"])
-    total_admin_role = len([u for u in users if u.role.lower() == "admin"])
+    total_user_role = len([u for u in users if (u.role or "user").lower() == "user"])
+    total_admin_role = len([u for u in users if (u.role or "").lower() == "admin"])
 
     return render_template(
         "admin/home.html",

@@ -39,3 +39,4 @@ class UserSimulation(HttpUser):
     def view_history(self):
         """Simulasi buka halaman riwayat"""
         self.client.get("/history")
+# locust -f load_test.py 

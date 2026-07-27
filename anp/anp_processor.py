@@ -416,11 +416,13 @@ def draw_hierarchy_network(alts, nama_alts, alt_codes, global_weights, local_mat
             astr = str(alt)
             if astr in positions:
                 w = float(local_col[ai]) if ai < len(local_col) else 0.0
-                if w > 0.01:
+                if w > 0.10:  # Hapus label kecil di bawah 0.10 agar tidak berjejal
                     lw = max(0.5, w * 8)
-                    lbl = f"{w:.3f}" if w > 0.05 else None
+                    lbl = f"{w:.3f}"
+                    # Posisi label bergantian untuk baris atas (C5, C4, C3) dan bawah (C2, C1)
+                    pos_param = 0.70 if ckey in ["C5", "C4", "C3"] else 0.35
                     draw_arrow(ax, crit_positions_new[ckey], positions[astr],
-                               '#dcdde1', lw=lw, alpha=0.55, rad=-0.08, label_txt=lbl, fontsize=9.5)
+                               '#dcdde1', lw=lw, alpha=0.55, rad=-0.08, label_txt=lbl, fontsize=8.0, label_pos=pos_param)
 
     # Draw Nodes
     for key in crit_keys:
@@ -475,7 +477,7 @@ def generate_anp_network_images(alts, nama_alts, global_weights, inner_dep_weigh
             alt_codes[str(alt)] = f"A{i+1}"
 
     # === HELPER: GAMBAR ANAK PANAH ===
-    def draw_arrow(ax, fp, tp, color, lw=1.2, ls='-', alpha=0.65, rad=0.0, label_txt=None, fontsize=10.0):
+    def draw_arrow(ax, fp, tp, color, lw=1.2, ls='-', alpha=0.65, rad=0.0, label_txt=None, fontsize=10.0, label_pos=0.5):
         ax.annotate("",
             xy=tp, xycoords='data', xytext=fp, textcoords='data',
             arrowprops=dict(
@@ -484,7 +486,8 @@ def generate_anp_network_images(alts, nama_alts, global_weights, inner_dep_weigh
             )
         )
         if label_txt:
-            mx, my = (fp[0] + tp[0]) / 2, (fp[1] + tp[1]) / 2
+            mx = fp[0] + (tp[0] - fp[0]) * label_pos
+            my = fp[1] + (tp[1] - fp[1]) * label_pos
             if rad != 0.0:
                 dx = tp[0] - fp[0]
                 dy = tp[1] - fp[1]
