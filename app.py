@@ -118,6 +118,29 @@ def rupiah_format(value):
     except:
         return "Rp 0"
 
+# === FILTER FORMAT PECAHAN ===
+@app.template_filter('to_fraction')
+def to_fraction(value):
+    if value is None:
+        return "1"
+    try:
+        val = float(value)
+    except (ValueError, TypeError):
+        return str(value)
+        
+    if abs(val - round(val)) < 1e-4:
+        return str(int(round(val)))
+        
+    for d in range(2, 10):
+        if abs(val - (1.0 / d)) < 0.01:
+            return f"1/{d}"
+            
+    from fractions import Fraction
+    frac = Fraction(val).limit_denominator(20)
+    if frac.denominator == 1:
+        return str(frac.numerator)
+    return f"{frac.numerator}/{frac.denominator}"
+
 # === GOOGLE OAUTH ===
 os.environ["OAUTHLIB_INSECURE_TRANSPORT"] = "1"
 google_bp = make_google_blueprint(
@@ -129,6 +152,20 @@ google_bp = make_google_blueprint(
 app.register_blueprint(google_bp, url_prefix="/login")
 
 # === HELPER FUNCTIONS ===
+def parse_val(v):
+    if not v:
+        return 1.0
+    v = str(v).strip().replace(',', '.')
+    if '/' in v:
+        try:
+            num, den = v.split('/')
+            return float(num) / float(den)
+        except (ValueError, ZeroDivisionError):
+            return 1.0
+    try:
+        return float(v)
+    except ValueError:
+        return 1.0
 def allowed_file(filename):
     return "." in filename and filename.rsplit(".", 1)[1].lower() in ALLOWED_EXTENSIONS
 
@@ -289,7 +326,7 @@ def admin_kriteria():
                         new_matrix[i][j] = 1.0
                     else:
                         val = request.form.get(f'cell_{i}_{j}')
-                        new_matrix[i][j] = float(val) if val else 1.0
+                        new_matrix[i][j] = parse_val(val)
             
             with open(filename, 'w') as f:
                 json.dump({"matrix": new_matrix}, f)
